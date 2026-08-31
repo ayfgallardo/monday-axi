@@ -106,13 +106,18 @@ pnpm run bench <directory-of-captured-output-pairs>
 Each scenario is a pair of files sharing a name: `<scenario>.axi.<ext>` (this
 CLI's output) and `<scenario>.mcp.<ext>` (the MCP-equivalent output).
 
+Measured 2026-08-31 on a live 37-ticket sprint board. MCP equivalents:
+`get_board_items_page` (home, ticket list), `get_board_items_page` +
+`get_updates` (ticket view), `get_updates` on the board with item updates
+(mentions), `get_board_info` with `columns.only` (board view).
+
 | Scenario    | monday-axi tokens | MCP tokens | Ratio |
 | ----------- | ----------------- | ---------- | ----- |
-| home        | TBD               | TBD        | TBD   |
-| ticket list | TBD               | TBD        | TBD   |
-| ticket view | TBD               | TBD        | TBD   |
-| mentions    | TBD               | TBD        | TBD   |
-| board view  | TBD               | TBD        | TBD   |
+| home        | 1078              | 8827       | 8.2x  |
+| ticket list | 802               | 8827       | 11.0x |
+| ticket view | 239               | 603        | 2.5x  |
+| mentions    | 223               | 8299       | 37.2x |
+| board view  | 295               | 2645       | 9.0x  |
 
 ## License
 
