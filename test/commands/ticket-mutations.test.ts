@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { mondayQuery } = vi.hoisted(() => ({ mondayQuery: vi.fn() }));
 vi.mock("../../src/monday.js", () => ({ mondayQuery }));
 
-import { ticketCommand } from "../../src/commands/ticket.js";
+import {
+  CREATE_UPDATE_MUTATION,
+  ticketCommand,
+} from "../../src/commands/ticket.js";
 import type { MondayContext } from "../../src/config.js";
 
 const context: MondayContext = {
@@ -47,33 +50,24 @@ describe("ticket status", () => {
     }
   });
 
-  it("resolves the item's own board (not the configured boardId) before mutating — subitem case", async () => {
-    mondayQuery
-      .mockResolvedValueOnce({
-        items: [
-          {
-            id: "222",
-            board: { id: "9999999999" },
-            column_values: [
-              { id: "status_1", text: "À faire", label: "À faire" },
-            ],
-          },
-        ],
-      })
-      .mockResolvedValueOnce({ change_simple_column_value: { id: "222" } });
+  it("refuses to mutate a subitem (item's board differs from the configured boardId) without calling the mutation", async () => {
+    mondayQuery.mockResolvedValueOnce({
+      items: [
+        {
+          id: "222",
+          board: { id: context.subitemBoardId },
+          column_values: [
+            { id: "status_1", text: "À faire", label: "À faire" },
+          ],
+        },
+      ],
+    });
 
-    await ticketCommand(["status", "222", "En cours"], context);
+    await expect(
+      ticketCommand(["status", "222", "En cours"], context),
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
 
-    expect(mondayQuery).toHaveBeenCalledTimes(2);
-    const [, mutationVars] = mondayQuery.mock.calls[1] as [
-      string,
-      Record<string, unknown>,
-    ];
-    expect(mutationVars.boardId).toBe("9999999999");
-    expect(mutationVars.boardId).not.toBe(context.boardId);
-    expect(mutationVars.itemId).toBe("222");
-    expect(mutationVars.columnId).toBe("status_1");
-    expect(mutationVars.value).toBe("En cours");
+    expect(mondayQuery).toHaveBeenCalledTimes(1);
   });
 
   it("sets the status via change_simple_column_value with the raw label text", async () => {
@@ -114,6 +108,7 @@ describe("ticket status", () => {
 
     expect(mondayQuery).toHaveBeenCalledTimes(1);
     expect(output).toContain("En cours");
+    expect(output).toContain("already");
   });
 
   it("throws NOT_FOUND when the ticket does not exist", async () => {
@@ -167,17 +162,17 @@ describe("ticket comment", () => {
     expect(vars.body).toBe("line1<br>line2");
   });
 
-  it("passes the item id and body only as GraphQL variables, never inlined into the query", async () => {
+  it("sends the exported CREATE_UPDATE_MUTATION with id/body as variables, never inlined", async () => {
     mondayQuery.mockResolvedValueOnce({ create_update: { id: "555" } });
 
-    const [query] = await Promise.all([
-      ticketCommand(["comment", "111", "hello"], context).then(
-        () => mondayQuery.mock.calls[0][0] as string,
-      ),
-    ]);
+    await ticketCommand(["comment", "111", "hello"], context);
 
-    expect(query).not.toContain("111");
-    expect(query).not.toContain("hello");
+    const [query, vars] = mondayQuery.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+    expect(query).toBe(CREATE_UPDATE_MUTATION);
+    expect(vars).toEqual({ itemId: "111", body: "hello" });
   });
 
   it("requires comment text", async () => {

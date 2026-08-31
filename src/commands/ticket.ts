@@ -10,6 +10,7 @@ import {
 } from "../args.js";
 import { getSuggestions } from "../suggestions.js";
 import {
+  boolYesNo,
   custom,
   field,
   renderDetail,
@@ -553,6 +554,24 @@ async function ticketStatus(
     ]);
   }
 
+  // board_of guard: the item's OWN board, never ctx.boardId — a subitem
+  // lives on subitemBoardId, not the parent board. v1 scope excludes
+  // writing to subitems: ctx.columns.status / ctx.statusLabels describe the
+  // parent board's schema, which may not even apply to the subitem's board.
+  const boardId = item.board?.id;
+  if (!boardId) {
+    throw new AxiError(`Ticket ${id} has no board`, "UNKNOWN");
+  }
+  if (boardId !== ctx.boardId) {
+    throw new AxiError(
+      `Ticket ${id} lives on board ${boardId}, not the configured board ${ctx.boardId} — likely a subitem`,
+      "VALIDATION_ERROR",
+      [
+        "Mutating subitem status is out of scope for v1 — run `monday-axi ticket status` on the parent item instead",
+      ],
+    );
+  }
+
   const currentLabel = columnText(item, statusColumnId);
   const schema: FieldDef[] = [field("id"), field("status")];
   const hints = renderHelp(
@@ -563,17 +582,10 @@ async function ticketStatus(
     return renderOutput([
       renderDetail("ticket", { id, status: label, already: true }, [
         ...schema,
-        field("already"),
+        boolYesNo("already"),
       ]),
       hints,
     ]);
-  }
-
-  // board_of guard: the item's OWN board, never ctx.boardId — a subitem
-  // lives on subitemBoardId, not the parent board.
-  const boardId = item.board?.id;
-  if (!boardId) {
-    throw new AxiError(`Ticket ${id} has no board`, "UNKNOWN");
   }
 
   await mondayQuery(SET_STATUS_MUTATION, {
@@ -608,7 +620,7 @@ function escapeHtml(text: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;")
-    .replace(/\n/g, "<br>");
+    .replace(/\r?\n/g, "<br>");
 }
 
 async function ticketComment(
