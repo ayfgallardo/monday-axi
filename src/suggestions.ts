@@ -51,7 +51,10 @@ const table: SuggestionEntry[] = [
   },
   {
     match: (c) => c.domain === "mentions" && c.isEmpty === true,
-    lines: () => [],
+    lines: () => [
+      "Run `monday-axi mentions --limit <n>` to look further back",
+      "Run `monday-axi ticket list` to see your tickets directly",
+    ],
   },
 
   {

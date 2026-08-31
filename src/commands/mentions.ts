@@ -1,7 +1,7 @@
 import type { MondayContext } from "../config.js";
 import { mondayQuery } from "../monday.js";
 import { AxiError } from "../errors.js";
-import { rejectUnknownFlags, resolveLimit } from "../args.js";
+import { rejectUnknownFlags, resolveLimit, takeBoolFlag } from "../args.js";
 import { getSuggestions } from "../suggestions.js";
 import {
   custom,
@@ -31,7 +31,7 @@ interface UpdatesResponse {
   updates: MentionUpdate[] | null;
 }
 
-const MENTIONS_QUERY = `
+export const MENTIONS_QUERY = `
   query ($limit: Int!) {
     updates(limit: $limit) {
       id
@@ -55,14 +55,14 @@ function mentionsPerson(update: MentionUpdate, personId: string): boolean {
   return (update.body ?? "").includes(`data-mention-id="${personId}"`);
 }
 
-const MENTIONS_FLAGS = ["--limit"] as const;
+const MENTIONS_FLAGS = ["--limit", "--full"] as const;
 
 export async function mentionsCommand(
   args: string[],
   ctx?: MondayContext,
 ): Promise<string> {
   if (args[0] === "help" || args[0] === "--help" || args[0] === "-h") {
-    return "usage: monday-axi mentions [--limit <n>]\n";
+    return "usage: monday-axi mentions [--limit <n>] [--full]\n";
   }
 
   if (!ctx) {
@@ -83,6 +83,7 @@ export async function mentionsCommand(
     );
   }
   const personId = ctx.personId;
+  const full = takeBoolFlag(args, "--full");
   const limit = resolveLimit(args, 50);
 
   const data = await mondayQuery<UpdatesResponse>(MENTIONS_QUERY, { limit });
@@ -94,11 +95,13 @@ export async function mentionsCommand(
     field("item_id", "ticket"),
     custom("author", (u: MentionUpdate) => u.creator?.name ?? "unknown"),
     field("created_at", "created"),
-    custom("body", (u: MentionUpdate) => truncateText(u.text_body, 500)),
+    custom("body", (u: MentionUpdate) =>
+      full ? (u.text_body ?? "") : truncateText(u.text_body, 500),
+    ),
   ];
 
   return renderOutput([
-    mentions.length > 0 ? `count: ${mentions.length}` : "count: 0 mentions",
+    `count: ${mentions.length} mentions`,
     renderList("mentions", mentions, schema),
     renderHelp(
       getSuggestions({

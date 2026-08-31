@@ -39,6 +39,16 @@ describe("getSuggestions", () => {
     expect(lines.join(" ")).toContain("ticket view");
   });
 
+  it("suggests something actionable after an empty mentions list", () => {
+    const lines = getSuggestions({
+      domain: "mentions",
+      action: "list",
+      isEmpty: true,
+    });
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.join(" ")).toContain("monday-axi");
+  });
+
   it("suggests exploring commands from home", () => {
     const lines = getSuggestions({ domain: "home", action: "home" });
     expect(lines.join(" ")).toContain("monday-axi");
