@@ -111,8 +111,10 @@ export async function main(options: MainOptions = {}): Promise<void> {
       };
     },
     resolveContext: ({ command, args }) => {
-      // `setup` writes the configuration, so it must run without one.
-      if (command === "setup") {
+      // `setup` writes the configuration, so it must run without one; `api`
+      // is a raw GraphQL escape hatch that ignores context, and requiring
+      // one would make it useless before `setup` has ever run.
+      if (command === "setup" || command === "api") {
         return undefined;
       }
       const { boardFlag, personFlag } = parseContextArgs(args);

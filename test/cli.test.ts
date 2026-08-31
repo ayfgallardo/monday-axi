@@ -176,6 +176,14 @@ describe("main CLI", () => {
     expect(loadConfig).not.toHaveBeenCalled();
   });
 
+  it("skips config loading for api, an escape hatch usable before setup ever runs", async () => {
+    const options = await cliOptions();
+    expect(
+      options.resolveContext?.({ command: "api", args: ["query { x }"] }),
+    ).toBeUndefined();
+    expect(loadConfig).not.toHaveBeenCalled();
+  });
+
   it("renders an AxiError as TOON with its code and suggestions", async () => {
     const options = await cliOptions();
     const formatted = options.formatError?.(

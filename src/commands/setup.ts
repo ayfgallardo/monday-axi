@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { encode } from "@toon-format/toon";
-import { configPath, loadConfig } from "../config.js";
+import { configPath, parseConfig } from "../config.js";
 import { AxiError } from "../errors.js";
 import { rejectUnknownFlags, takeFlag, takeRepeatedFlag } from "../args.js";
 
@@ -92,9 +92,13 @@ export async function setupCommand(args: string[]): Promise<string> {
   };
 
   const path = configPath();
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+  const raw = `${JSON.stringify(config, null, 2)}\n`;
+  // Validate through the same shape check as loadConfig before ever touching
+  // disk, so a bad `setup` invocation can never clobber a previously valid config.
+  const validated = parseConfig(raw, path);
 
-  const written = loadConfig();
-  return `${encode({ config_written: path, ...written })}\n`;
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, raw, "utf-8");
+
+  return `${encode({ config_written: path, ...validated })}\n`;
 }

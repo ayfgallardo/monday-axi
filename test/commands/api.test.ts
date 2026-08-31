@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mondayQuery, readStdin, isStdinTTY } = vi.hoisted(() => ({
+const { mondayQuery, readStdin, isStdinTTY, loadConfig } = vi.hoisted(() => ({
   mondayQuery: vi.fn(),
   readStdin: vi.fn(),
   isStdinTTY: vi.fn(),
+  loadConfig: vi.fn(),
 }));
 vi.mock("../../src/monday.js", () => ({ mondayQuery }));
 vi.mock("../../src/stdin.js", () => ({ readStdin, isStdinTTY }));
+vi.mock("../../src/config.js", () => ({ loadConfig }));
 
 import { apiCommand } from "../../src/commands/api.js";
 import { AxiError } from "../../src/errors.js";
@@ -15,10 +17,19 @@ describe("api", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     isStdinTTY.mockReturnValue(true);
+    loadConfig.mockImplementation(() => {
+      throw new AxiError("No Monday configuration", "CONFIG_MISSING");
+    });
   });
 
   it("returns the help text", async () => {
     expect(await apiCommand(["--help"])).toContain("monday-axi api");
+  });
+
+  it("works without any Monday configuration, an escape hatch usable before setup ever runs", async () => {
+    mondayQuery.mockResolvedValue({ ok: true });
+    await expect(apiCommand(["query { x }"])).resolves.toContain("ok");
+    expect(loadConfig).not.toHaveBeenCalled();
   });
 
   it("runs a query given as an argument and returns raw JSON", async () => {

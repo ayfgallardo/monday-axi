@@ -50,20 +50,8 @@ function parseStatusLabels(value: unknown, path: string): StatusLabel[] {
   return value;
 }
 
-export function loadConfig(): MondayContext {
-  const path = configPath();
-
-  let raw: string;
-  try {
-    raw = readFileSync(path, "utf-8");
-  } catch {
-    throw new AxiError(
-      `No Monday configuration at ${path}`,
-      "CONFIG_MISSING",
-      SETUP_HELP,
-    );
-  }
-
+/** Shared by `loadConfig` (reading from disk) and `setup` (validating before it writes). */
+export function parseConfig(raw: string, path: string): MondayContext {
   let parsed: Partial<MondayContext>;
   try {
     parsed = JSON.parse(raw) as Partial<MondayContext>;
@@ -89,4 +77,21 @@ export function loadConfig(): MondayContext {
     columns: parsed.columns ?? {},
     statusLabels: parseStatusLabels(parsed.statusLabels, path),
   };
+}
+
+export function loadConfig(): MondayContext {
+  const path = configPath();
+
+  let raw: string;
+  try {
+    raw = readFileSync(path, "utf-8");
+  } catch {
+    throw new AxiError(
+      `No Monday configuration at ${path}`,
+      "CONFIG_MISSING",
+      SETUP_HELP,
+    );
+  }
+
+  return parseConfig(raw, path);
 }

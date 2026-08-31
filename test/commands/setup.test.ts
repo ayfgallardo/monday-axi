@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { readFileSync, writeFileSync, mkdirSync } = vi.hoisted(() => ({
-  readFileSync: vi.fn(),
+const { writeFileSync, mkdirSync } = vi.hoisted(() => ({
   writeFileSync: vi.fn(),
   mkdirSync: vi.fn(),
 }));
-vi.mock("node:fs", () => ({ readFileSync, writeFileSync, mkdirSync }));
+vi.mock("node:fs", () => ({ writeFileSync, mkdirSync }));
 
 import { setupCommand } from "../../src/commands/setup.js";
 import { configPath } from "../../src/config.js";
@@ -14,9 +13,6 @@ import { AxiError } from "../../src/errors.js";
 describe("setup", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    writeFileSync.mockImplementation((_path, content) => {
-      readFileSync.mockReturnValue(content);
-    });
   });
 
   it("returns the help text", async () => {
@@ -87,11 +83,13 @@ describe("setup", () => {
     await expect(
       setupCommand(["--board", "1234567890", "--column", "status"]),
     ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    expect(writeFileSync).not.toHaveBeenCalled();
   });
 
   it("rejects a malformed --status-label index", async () => {
     await expect(
       setupCommand(["--board", "1234567890", "--status-label", "En cours=abc"]),
     ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    expect(writeFileSync).not.toHaveBeenCalled();
   });
 });
