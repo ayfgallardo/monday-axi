@@ -44,7 +44,7 @@ function printTable(rows: Row[]): void {
     r.scenario,
     String(r.axiTokens),
     String(r.mcpTokens),
-    `${(r.mcpTokens / r.axiTokens).toFixed(1)}x`,
+    r.axiTokens === 0 ? "n/a" : `${(r.mcpTokens / r.axiTokens).toFixed(1)}x`,
   ]);
   const widths = header.map((h, i) =>
     Math.max(h.length, ...lines.map((l) => l[i].length)),
