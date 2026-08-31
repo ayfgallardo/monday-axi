@@ -28,6 +28,7 @@
   ],
   "scripts": {
     "build": "tsc",
+    "bench": "tsx scripts/benchmark.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "tsx bin/monday-axi.ts",
@@ -47,6 +48,7 @@
     "@types/node": "^22.0.0",
     "eslint": "^10.1.0",
     "globals": "^17.4.0",
+    "gpt-tokenizer": "^4.0.0",
     "prettier": "^3.8.1",
     "tsx": "^4.0.0",
     "typescript": "^5.7.0",
