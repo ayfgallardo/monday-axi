@@ -6,6 +6,7 @@ import {
   takeBoolFlag,
   takeFlag,
   takeNumericId,
+  takeRepeatedFlag,
 } from "../src/args.js";
 
 describe("takeFlag", () => {
@@ -88,6 +89,18 @@ describe("resolveLimit", () => {
   });
 });
 
+describe("takeRepeatedFlag", () => {
+  it("collects every occurrence and removes them from args", () => {
+    const args = ["--var", "a=1", "--var", "b=2", "query"];
+    expect(takeRepeatedFlag(args, "--var")).toEqual(["a=1", "b=2"]);
+    expect(args).toEqual(["query"]);
+  });
+
+  it("returns an empty array when absent", () => {
+    expect(takeRepeatedFlag(["query"], "--var")).toEqual([]);
+  });
+});
+
 describe("rejectUnknownFlags", () => {
   it("passes known flags", () => {
     expect(() =>
@@ -105,5 +118,9 @@ describe("rejectUnknownFlags", () => {
     expect(() =>
       rejectUnknownFlags(["--help"], [], "ticket", "list"),
     ).not.toThrow();
+  });
+
+  it("treats a bare - positional (e.g. read-from-stdin) as not a flag", () => {
+    expect(() => rejectUnknownFlags(["-"], [], "api")).not.toThrow();
   });
 });

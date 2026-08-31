@@ -1,8 +1,10 @@
 import { encode } from "@toon-format/toon";
 import { runAxiCli } from "axi-sdk-js";
+import { apiCommand } from "./commands/api.js";
 import { boardCommand } from "./commands/board.js";
 import { homeCommand } from "./commands/home.js";
 import { mentionsCommand } from "./commands/mentions.js";
+import { setupCommand } from "./commands/setup.js";
 import { ticketCommand } from "./commands/ticket.js";
 import { loadConfig, type MondayContext } from "./config.js";
 import { AxiError, exitCodeForError } from "./errors.js";
@@ -48,9 +50,9 @@ const COMMAND_HELP: Record<string, string> = {
 `,
   board: `usage: monday-axi board view [--board <BOARD_ID>]
 `,
-  api: `usage: monday-axi api <graphql-query> [--var name=value]
+  api: `usage: monday-axi api <graphql-query|-> [--var name=value] [--allow-mutation]
 `,
-  setup: `usage: monday-axi setup
+  setup: `usage: monday-axi setup --board <BOARD_ID> [--subitem-board <ID>] [--person <ID>] [--column name=<ID>] [--status-label "Label=index"]
 `,
 };
 
@@ -58,11 +60,6 @@ type CommandFn = (
   args: string[],
   ctx: MondayContext | undefined,
 ) => Promise<string>;
-
-/** Placeholder until the command module lands; see the porting plan. */
-function notPortedYet(name: string): CommandFn {
-  return async () => encode({ command: name, status: "not ported yet" });
-}
 
 /**
  * `resolveContext` already parses --board/--person out of `args`, but
@@ -80,8 +77,8 @@ const COMMANDS: Record<string, CommandFn> = {
   ticket: withStrippedArgs(ticketCommand),
   mentions: withStrippedArgs(mentionsCommand),
   board: withStrippedArgs(boardCommand),
-  api: notPortedYet("api"),
-  setup: notPortedYet("setup"),
+  api: withStrippedArgs(apiCommand),
+  setup: setupCommand,
 };
 
 export async function main(options: MainOptions = {}): Promise<void> {

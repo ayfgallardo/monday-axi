@@ -7,6 +7,8 @@ const {
   mentionsCommand,
   boardCommand,
   homeCommand,
+  apiCommand,
+  setupCommand,
 } = vi.hoisted(() => ({
   runAxiCli: vi.fn(),
   loadConfig: vi.fn(),
@@ -14,6 +16,8 @@ const {
   mentionsCommand: vi.fn(async () => "mentions output"),
   boardCommand: vi.fn(async () => "board output"),
   homeCommand: vi.fn(async () => "home output"),
+  apiCommand: vi.fn(async () => "api output"),
+  setupCommand: vi.fn(async () => "setup output"),
 }));
 
 vi.mock("axi-sdk-js", async () => {
@@ -27,6 +31,8 @@ vi.mock("../src/commands/ticket.js", () => ({ ticketCommand }));
 vi.mock("../src/commands/mentions.js", () => ({ mentionsCommand }));
 vi.mock("../src/commands/board.js", () => ({ boardCommand }));
 vi.mock("../src/commands/home.js", () => ({ homeCommand }));
+vi.mock("../src/commands/api.js", () => ({ apiCommand }));
+vi.mock("../src/commands/setup.js", () => ({ setupCommand }));
 
 import { AxiError } from "../src/errors.js";
 import { COMMAND_NAMES, main, parseContextArgs, TOP_HELP } from "../src/cli.js";
@@ -54,6 +60,8 @@ describe("main CLI", () => {
     mentionsCommand.mockResolvedValue("mentions output");
     boardCommand.mockResolvedValue("board output");
     homeCommand.mockResolvedValue("home output");
+    apiCommand.mockResolvedValue("api output");
+    setupCommand.mockResolvedValue("setup output");
   });
 
   it("routes exactly the Monday command surface", () => {
@@ -83,13 +91,23 @@ describe("main CLI", () => {
     expect(options.home).toBeTypeOf("function");
   });
 
-  it("answers with a not-ported-yet stub for the commands still unimplemented", async () => {
+  it("dispatches api to its command module, stripping --board/--person", async () => {
     const options = await cliOptions();
-    for (const name of ["api", "setup"] as const) {
-      const output = await options.commands[name]([], context);
-      expect(String(output)).toContain("not ported yet");
-      expect(String(output)).toContain(name);
-    }
+    expect(
+      await options.commands.api(["query { x }", "--board", "5"], context),
+    ).toBe("api output");
+    expect(apiCommand).toHaveBeenCalledWith(["query { x }"], context);
+  });
+
+  it("dispatches setup to its command module without stripping flags", async () => {
+    const options = await cliOptions();
+    expect(
+      await options.commands.setup(["--board", "1234567890"], undefined),
+    ).toBe("setup output");
+    expect(setupCommand).toHaveBeenCalledWith(
+      ["--board", "1234567890"],
+      undefined,
+    );
   });
 
   it("dispatches ticket/mentions/board/home to their command modules", async () => {

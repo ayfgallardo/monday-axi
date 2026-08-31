@@ -34,6 +34,17 @@ export function takeFlag(args: string[], flag: string): string | undefined {
   return undefined;
 }
 
+/** Collect every occurrence of a repeatable flag, removing each from args. */
+export function takeRepeatedFlag(args: string[], flag: string): string[] {
+  const values: string[] = [];
+  let value = takeFlag(args, flag);
+  while (value !== undefined) {
+    values.push(value);
+    value = takeFlag(args, flag);
+  }
+  return values;
+}
+
 /** Check if a boolean flag is present and remove it from args. */
 export function takeBoolFlag(args: string[], flag: string): boolean {
   const idx = args.indexOf(flag);
@@ -82,7 +93,7 @@ export function rejectUnknownFlags(
   const unknown: string[] = [];
   for (const tok of args) {
     if (tok === "--") break;
-    if (!tok.startsWith("-")) continue;
+    if (!tok.startsWith("-") || tok === "-") continue;
     const name = tok.split("=", 1)[0];
     if (name === "--help" || name === "-h") continue;
     if (knownSet.has(name)) continue;
