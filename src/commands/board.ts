@@ -79,7 +79,9 @@ async function boardView(args: string[], ctx: MondayContext): Promise<string> {
 
   return renderOutput([
     renderDetail("board", board, schema),
-    encode({ status_labels: ctx.statusLabels }),
+    encode({
+      status_labels: ctx.statusLabels.map((s) => `${s.index}: ${s.label}`),
+    }),
     renderHelp(getSuggestions({ domain: "board", action: "view" })),
   ]);
 }

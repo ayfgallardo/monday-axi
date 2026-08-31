@@ -2,7 +2,7 @@
   "boards": [
     {
       "id": "1234567890",
-      "name": "Sprint Général",
+      "name": "Board projet démo",
       "items_count": 42,
       "groups": [
         { "id": "topics", "title": "À faire" },

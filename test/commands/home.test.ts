@@ -11,7 +11,13 @@ const context: MondayContext = {
   boardId: "1234567890",
   personId: "999",
   columns: { status: "status_1", person: "person_1", module: "module_1" },
-  statusLabels: ["À faire", "En cours", "En revue", "Terminé", "Archivé"],
+  statusLabels: [
+    { label: "À faire", index: 0 },
+    { label: "En cours", index: 1 },
+    { label: "En revue", index: 2 },
+    { label: "Terminé", index: 5 },
+    { label: "Archivé", index: 107 },
+  ],
 };
 
 describe("home", () => {
@@ -43,7 +49,11 @@ describe("home", () => {
           compare_value: ["person-999"],
           operator: "any_of",
         },
-        { column_id: "status_1", compare_value: [4], operator: "not_any_of" },
+        {
+          column_id: "status_1",
+          compare_value: [107],
+          operator: "not_any_of",
+        },
       ]),
     );
   });
@@ -61,5 +71,21 @@ describe("home", () => {
     await expect(homeCommand([], noPerson)).rejects.toMatchObject({
       code: "VALIDATION_ERROR",
     });
+  });
+
+  it("surfaces the pagination cursor instead of dropping it", async () => {
+    mondayQuery.mockResolvedValue({
+      boards: [
+        {
+          items_page: {
+            cursor: "cursor-home-2",
+            items: homeFixture.boards[0].items_page.items,
+          },
+        },
+      ],
+    });
+    const output = await homeCommand([], context);
+    expect(output).toContain("next_cursor: cursor-home-2");
+    expect(output).toContain("--cursor cursor-home-2");
   });
 });

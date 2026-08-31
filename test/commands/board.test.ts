@@ -10,7 +10,13 @@ import type { MondayContext } from "../../src/config.js";
 const context: MondayContext = {
   boardId: "1234567890",
   columns: { status: "status_1" },
-  statusLabels: ["À faire", "En cours", "En revue", "Terminé", "Archivé"],
+  statusLabels: [
+    { label: "À faire", index: 0 },
+    { label: "En cours", index: 1 },
+    { label: "En revue", index: 2 },
+    { label: "Terminé", index: 5 },
+    { label: "Archivé", index: 107 },
+  ],
 };
 
 describe("board view", () => {
@@ -21,11 +27,11 @@ describe("board view", () => {
   it("renders groups, columns, and configured status labels", async () => {
     mondayQuery.mockResolvedValue(boardFixture);
     const output = await boardCommand(["view"], context);
-    expect(output).toContain("Sprint Général");
+    expect(output).toContain("Board projet démo");
     expect(output).toContain("À faire");
     expect(output).toContain("En cours");
     expect(output).toContain("status_1");
-    expect(output).toContain("Archivé");
+    expect(output).toContain("107: Archivé");
   });
 
   it("errors when the board is not found", async () => {

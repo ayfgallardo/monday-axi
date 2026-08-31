@@ -51,7 +51,7 @@ export async function homeCommand(
   const exclusion = archivedExclusionRule(ctx);
   if (exclusion) rules.push(exclusion);
 
-  const { items } = await fetchItems(ctx, { rules, limit: HOME_LIMIT });
+  const { items, cursor } = await fetchItems(ctx, { rules, limit: HOME_LIMIT });
 
   const blocks: string[] = [aggregateLine(ctx, items)];
 
@@ -72,15 +72,23 @@ export async function homeCommand(
     blocks.push(renderList(status, groupItems, schema));
   }
 
-  blocks.push(
-    renderHelp(
-      getSuggestions({
-        domain: "home",
-        action: "home",
-        isEmpty: items.length === 0,
-      }),
-    ),
-  );
+  if (cursor) {
+    blocks.push(`next_cursor: ${cursor}`);
+  }
+
+  const hints = [
+    ...getSuggestions({
+      domain: "home",
+      action: "home",
+      isEmpty: items.length === 0,
+    }),
+  ];
+  if (cursor) {
+    hints.push(
+      `Run \`monday-axi ticket list --cursor ${cursor}\` to see more tickets`,
+    );
+  }
+  blocks.push(renderHelp(hints));
 
   return renderOutput(blocks);
 }

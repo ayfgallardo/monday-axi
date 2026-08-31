@@ -1,4 +1,4 @@
-import type { MondayContext } from "../config.js";
+import type { MondayContext, StatusLabel } from "../config.js";
 import { mondayQuery } from "../monday.js";
 import { AxiError } from "../errors.js";
 import {
@@ -69,6 +69,10 @@ interface ItemsPageResponse {
   boards: { items_page: { cursor: string | null; items: Item[] } }[] | null;
 }
 
+interface NextItemsPageResponse {
+  next_items_page: { cursor: string | null; items: Item[] } | null;
+}
+
 interface ItemResponse {
   items: Item[] | null;
 }
@@ -106,17 +110,27 @@ export function moduleOf(ctx: MondayContext, item: Item): string {
   return columnText(item, ctx.columns.module) ?? "unknown";
 }
 
-/** Excludes the configured "Archivé" status by its index in statusLabels. */
+function findStatusLabel(
+  ctx: MondayContext,
+  label: string,
+): StatusLabel | undefined {
+  return ctx.statusLabels.find((s) => s.label === label);
+}
+
+/**
+ * Excludes the configured "Archivé" status by its real Monday settings index
+ * (not its position in statusLabels — Monday indexes are non-contiguous).
+ */
 export function archivedExclusionRule(
   ctx: MondayContext,
 ): QueryRule | undefined {
   const statusColumnId = ctx.columns.status;
   if (!statusColumnId) return undefined;
-  const archivedIndex = ctx.statusLabels.indexOf("Archivé");
-  if (archivedIndex === -1) return undefined;
+  const archived = findStatusLabel(ctx, "Archivé");
+  if (!archived) return undefined;
   return {
     column_id: statusColumnId,
-    compare_value: [archivedIndex],
+    compare_value: [archived.index],
     operator: "not_any_of",
   };
 }
@@ -126,15 +140,15 @@ export function statusFilterRule(ctx: MondayContext, label: string): QueryRule {
   if (!statusColumnId) {
     throw new AxiError("No status column configured", "VALIDATION_ERROR");
   }
-  const index = ctx.statusLabels.indexOf(label);
-  if (index === -1) {
+  const found = findStatusLabel(ctx, label);
+  if (!found) {
     throw new AxiError(`Unknown status label: ${label}`, "VALIDATION_ERROR", [
-      `Valid labels: ${ctx.statusLabels.join(", ")}`,
+      `Valid labels: ${ctx.statusLabels.map((s) => s.label).join(", ")}`,
     ]);
   }
   return {
     column_id: statusColumnId,
-    compare_value: [index],
+    compare_value: [found.index],
     operator: "any_of",
   };
 }
@@ -149,11 +163,25 @@ export function personFilterRule(ctx: MondayContext): QueryRule | undefined {
   };
 }
 
+/** Server-side --module filter; undefined when no module column is configured. */
+export function moduleFilterRule(
+  ctx: MondayContext,
+  text: string,
+): QueryRule | undefined {
+  const moduleColumnId = ctx.columns.module;
+  if (!moduleColumnId) return undefined;
+  return {
+    column_id: moduleColumnId,
+    compare_value: [text],
+    operator: "contains_text",
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Shared fetch used by ticket list and home
 // ---------------------------------------------------------------------------
 
-const LIST_QUERY = `
+export const LIST_QUERY = `
   query ($boardId: ID!, $limit: Int!, $columnIds: [String!], $queryParams: ItemsQuery) {
     boards(ids: [$boardId]) {
       items_page(limit: $limit, query_params: $queryParams) {
@@ -174,11 +202,46 @@ const LIST_QUERY = `
   }
 `;
 
+/**
+ * Continues a previous items_page response. query_params and cursor are
+ * mutually exclusive on the Monday API — a cursor always replays the filters
+ * of the page it came from, so no query_params travels here.
+ */
+export const NEXT_PAGE_QUERY = `
+  query ($cursor: String!, $limit: Int!, $columnIds: [String!]) {
+    next_items_page(cursor: $cursor, limit: $limit) {
+      cursor
+      items {
+        id
+        name
+        column_values(ids: $columnIds) {
+          id
+          text
+          ... on StatusValue {
+            label
+          }
+        }
+      }
+    }
+  }
+`;
+
 export async function fetchItems(
   ctx: MondayContext,
-  options: { rules: QueryRule[]; limit: number },
+  options: { rules: QueryRule[]; limit: number; cursor?: string },
 ): Promise<{ items: Item[]; cursor: string | null }> {
   const columnIds = Object.values(ctx.columns);
+
+  if (options.cursor) {
+    const data = await mondayQuery<NextItemsPageResponse>(NEXT_PAGE_QUERY, {
+      cursor: options.cursor,
+      limit: options.limit,
+      columnIds,
+    });
+    const page = data.next_items_page;
+    return { items: page?.items ?? [], cursor: page?.cursor ?? null };
+  }
+
   const data = await mondayQuery<ItemsPageResponse>(LIST_QUERY, {
     boardId: ctx.boardId,
     limit: options.limit,
@@ -210,29 +273,67 @@ export function aggregateLine(ctx: MondayContext, items: Item[]): string {
 // ticket list
 // ---------------------------------------------------------------------------
 
-const LIST_FLAGS = ["--status", "--module", "--all", "--limit"] as const;
+const LIST_FLAGS = [
+  "--status",
+  "--module",
+  "--all",
+  "--limit",
+  "--cursor",
+] as const;
 
 async function ticketList(args: string[], ctx: MondayContext): Promise<string> {
   rejectUnknownFlags(args, LIST_FLAGS, "ticket", "list");
   const statusFlag = takeFlag(args, "--status");
   const moduleFlag = takeFlag(args, "--module");
   const all = takeBoolFlag(args, "--all");
+  const cursorFlag = takeFlag(args, "--cursor");
   const limit = resolveLimit(args, 25);
 
-  const rules: QueryRule[] = [];
-  if (statusFlag) {
-    rules.push(statusFilterRule(ctx, statusFlag));
-  } else if (!all) {
-    const exclusion = archivedExclusionRule(ctx);
-    if (exclusion) rules.push(exclusion);
+  if (
+    cursorFlag &&
+    (statusFlag !== undefined || moduleFlag !== undefined || all)
+  ) {
+    throw new AxiError(
+      "--cursor cannot be combined with --status/--module/--all — query_params and cursor are mutually exclusive on the Monday API",
+      "VALIDATION_ERROR",
+      [
+        "Run `monday-axi ticket list --cursor <cursor>` alone to continue the same page",
+      ],
+    );
   }
 
-  const { items: fetched, cursor } = await fetchItems(ctx, { rules, limit });
-  const items = moduleFlag
-    ? fetched.filter((item) =>
-        moduleOf(ctx, item).toLowerCase().includes(moduleFlag.toLowerCase()),
-      )
-    : fetched;
+  const rules: QueryRule[] = [];
+  if (!cursorFlag) {
+    if (statusFlag) {
+      rules.push(statusFilterRule(ctx, statusFlag));
+    } else if (!all) {
+      const exclusion = archivedExclusionRule(ctx);
+      if (exclusion) rules.push(exclusion);
+    }
+    if (moduleFlag) {
+      // moduleOf() reads the same column id, so without it every item would
+      // read as "unknown" — filtering client-side would silently return
+      // nothing rather than a real answer. Push it server-side or fail loud.
+      const moduleRule = moduleFilterRule(ctx, moduleFlag);
+      if (!moduleRule) {
+        throw new AxiError(
+          "No module column configured — cannot filter by --module",
+          "VALIDATION_ERROR",
+          [
+            "Run `monday-axi board view` to see available columns",
+            "Configure columns.module in the Monday context, or drop --module",
+          ],
+        );
+      }
+      rules.push(moduleRule);
+    }
+  }
+
+  const { items, cursor } = await fetchItems(ctx, {
+    rules,
+    limit,
+    cursor: cursorFlag,
+  });
 
   const schema: FieldDef[] = [
     field("id"),
@@ -250,13 +351,14 @@ async function ticketList(args: string[], ctx: MondayContext): Promise<string> {
   ];
   if (cursor) {
     hints.push(
-      "More tickets may be available — run with a higher --limit to see more",
+      `Run \`monday-axi ticket list --cursor ${cursor}\` to see the next page`,
     );
   }
 
   return renderOutput([
     aggregateLine(ctx, items),
     renderList("tickets", items, schema),
+    ...(cursor ? [`next_cursor: ${cursor}`] : []),
     renderHelp(hints),
   ]);
 }
@@ -265,7 +367,7 @@ async function ticketList(args: string[], ctx: MondayContext): Promise<string> {
 // ticket view
 // ---------------------------------------------------------------------------
 
-const VIEW_QUERY = `
+export const VIEW_QUERY = `
   query ($id: ID!, $columnIds: [String!]) {
     items(ids: [$id]) {
       id
@@ -383,7 +485,7 @@ async function ticketView(args: string[], ctx: MondayContext): Promise<string> {
 
 export const TICKET_HELP = `usage: monday-axi ticket <list|view> [args] [flags]
 flags{list}:
-  --status <label>, --module <text>, --all, --limit <n>
+  --status <label>, --module <text>, --all, --limit <n>, --cursor <c> (continue a previous page; cannot combine with --status/--module/--all)
 flags{view}:
   --full
 `;
