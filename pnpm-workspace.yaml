@@ -1,0 +1,9 @@
+packages:
+  - "."
+
+allowBuilds:
+  esbuild: true
+
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - axi-sdk-js

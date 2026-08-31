@@ -1,0 +1,56 @@
+{
+  "name": "monday-axi",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.1.1",
+  "description": "AXI-compliant Monday.com CLI — token-efficient TOON output, contextual suggestions, targeted mutations. Built on the glab-axi architecture.",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ayfgallardo/monday-axi.git"
+  },
+  "keywords": [
+    "monday",
+    "cli",
+    "agent",
+    "axi",
+    "toon",
+    "graphql"
+  ],
+  "bin": {
+    "monday-axi": "./dist/bin/monday-axi.js"
+  },
+  "files": [
+    "dist",
+    "skills/monday-axi",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "tsx bin/monday-axi.ts",
+    "prepare": "npm run build"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@mondaydotcomorg/api": "^14.0.0",
+    "@toon-format/toon": "^2.1.0",
+    "axi-sdk-js": "^0.1.11"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.0.0",
+    "eslint": "^10.1.0",
+    "globals": "^17.4.0",
+    "prettier": "^3.8.1",
+    "tsx": "^4.0.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.58.0",
+    "vitest": "^3.0.0"
+  }
+}
