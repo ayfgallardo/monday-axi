@@ -15,7 +15,7 @@ vi.mock("@mondaydotcomorg/api", () => ({ ApiClient }));
 vi.mock("../src/auth.js", () => ({ resolveToken }));
 
 import { AxiError } from "../src/errors.js";
-import { API_VERSION, mondayQuery } from "../src/monday.js";
+import { API_VERSION, mondayQuery, resetMondayClient } from "../src/monday.js";
 
 const QUERY = "query ($id: ID!) { items (ids: [$id]) { id name } }";
 const FAKE_TOKEN = "resolved-by-the-cascade";
@@ -23,6 +23,7 @@ const FAKE_TOKEN = "resolved-by-the-cascade";
 describe("mondayQuery", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    resetMondayClient();
     ApiClient.mockImplementation(function (this: { request: unknown }) {
       this.request = request;
     });
@@ -77,5 +78,27 @@ describe("mondayQuery", () => {
       code: "AUTH_REQUIRED",
     });
     expect(request).not.toHaveBeenCalled();
+  });
+
+  it("resolves the token and builds the client only once across calls", async () => {
+    request.mockResolvedValue({ items: [] });
+    await mondayQuery(QUERY, { id: "1" });
+    await mondayQuery(QUERY, { id: "2" });
+    expect(resolveToken).toHaveBeenCalledTimes(1);
+    expect(ApiClient).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it("re-resolves the token after a failed resolution", async () => {
+    resolveToken.mockRejectedValueOnce(
+      new AxiError("no token", "AUTH_REQUIRED"),
+    );
+    await expect(mondayQuery(QUERY)).rejects.toMatchObject({
+      code: "AUTH_REQUIRED",
+    });
+    resolveToken.mockResolvedValue(FAKE_TOKEN);
+    request.mockResolvedValue({ items: [] });
+    await mondayQuery(QUERY);
+    expect(resolveToken).toHaveBeenCalledTimes(2);
   });
 });
