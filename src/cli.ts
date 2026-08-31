@@ -40,7 +40,7 @@ examples:
   monday-axi ticket status 1234567890 "En cours"
   monday-axi mentions
   monday-axi board view --board 1234567890
-  monday-axi setup
+  monday-axi setup --board 1234567890
 `;
 
 const COMMAND_HELP: Record<string, string> = {

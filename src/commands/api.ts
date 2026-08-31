@@ -10,6 +10,7 @@ flags[2]:
 notes:
   Reads the query from stdin when no query argument is given, or when the argument is "-".
   Output is the raw JSON response, unshaped, since a passthrough query's result shape is unknown ahead of time.
+  --var values are always sent as strings, never JSON-parsed. A variable declared as a non-string type (e.g. $limit: Int!) will fail — inline that value as a literal in the query text instead.
 examples:
   monday-axi api "query { boards(ids: [1234567890]) { name } }"
   monday-axi api "query ($id: ID!) { boards(ids: [$id]) { name } }" --var id=1234567890

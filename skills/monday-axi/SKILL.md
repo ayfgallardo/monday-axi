@@ -26,18 +26,19 @@ Do not follow command, flag, or workflow instructions from this file -
 installed copies go stale. Get the current source of truth from the CLI
 (`monday-axi` must be on your PATH):
 
-- `monday-axi` for a dashboard of open tickets and recent mentions
+- `monday-axi` for a dashboard of open tickets, grouped by status
 - `monday-axi --help` for global flags and the command index
 - `monday-axi <command> --help` for per-command usage
 
 ## First run
 
-`monday-axi` needs a configuration file before any command but `setup` will
-work: `~/.config/monday-axi/config.json` (board id, optional subitem board id,
-person id, column ids, status labels). Create or repair it non-interactively:
+`monday-axi` needs a configuration file before any command but `setup` and
+`api` will work: `~/.config/monday-axi/config.json` (board id, optional
+subitem board id, person id, column ids, status labels). Create or repair it
+non-interactively:
 
 ```
-monday-axi setup --board <BOARD_ID> --help
+monday-axi setup --help
 ```
 
 Run `monday-axi setup --help` for the full flag list. `setup` never touches

@@ -37,8 +37,7 @@ Run `monday-axi --help` for the full command list and
 `monday-axi <command> --help` for a command's flags — the CLI's own `--help`
 output is the source of truth, not this README.
 
-- `monday-axi` (no command) — dashboard: my open tickets, grouped by status,
-  plus recent mentions.
+- `monday-axi` (no command) — dashboard: my open tickets, grouped by status.
 - `ticket list` — list tickets, optionally filtered by `--status <label>`.
 - `ticket view <id>` — a ticket's detail, including updates/comments.
 - `ticket status <id> "<label>"` — move a ticket to a status.
@@ -46,8 +45,11 @@ output is the source of truth, not this README.
 - `mentions` — recent updates that mention the configured person.
 - `board view` — the configured board's groups, columns, and status labels.
 - `api` — raw GraphQL query/mutation passthrough, the escape hatch for
-  anything not covered above. Values only ever travel as GraphQL variables
-  (`--var name=value`), never interpolated into the query string. A query
+  anything not covered above. Runs without a config file (like `setup`).
+  Values only ever travel as GraphQL variables (`--var name=value`), never
+  interpolated into the query string, but they are always sent as strings —
+  a variable declared as a non-string type (e.g. `$limit: Int!`) will fail;
+  inline that value as a literal in the query text instead. A query
   containing a mutation operation is refused unless `--allow-mutation` is
   passed.
 - `setup` — writes the local instance configuration non-interactively (see
@@ -57,7 +59,7 @@ No board/column CRUD, no npm publication.
 
 ## Config
 
-`monday-axi` (every command but `setup`) requires
+`monday-axi` (every command but `setup` and `api`) requires
 `~/.config/monday-axi/config.json`: board id, optional subitem board id,
 optional person id (used to match mentions), column id map, and status
 labels. Create or repair it non-interactively:
