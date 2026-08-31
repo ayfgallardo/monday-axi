@@ -8,7 +8,7 @@ import { rejectUnknownFlags, takeFlag, takeRepeatedFlag } from "../args.js";
 export const SETUP_HELP = `usage: monday-axi setup --board <BOARD_ID> [flags]
 description: Write ~/.config/monday-axi/config.json non-interactively. Never handles a token — auth comes from env/.env/Keychain (see monday-axi --help).
 flags[5]:
-  --board <BOARD_ID> (required), --subitem-board <BOARD_ID>, --person <PERSON_ID>, --column name=<COLUMN_ID> (repeatable), --status-label "Label=index" (repeatable, index is the label's Monday settings index for this board)
+  --board <BOARD_ID> (required), --subitem-board <BOARD_ID>, --person <PERSON_ID>, --column name=<COLUMN_ID> (repeatable), --status-label "Label=id" (repeatable, id is the label's Monday label id — the key in the status column's settings_str labels map, NOT the "index" field shown by Monday tools)
 examples:
   monday-axi setup --board 1234567890
   monday-axi setup --board 1234567890 --subitem-board 1234567891 --person 999 --column status=status_1 --status-label "En cours=1"
@@ -44,7 +44,7 @@ function parseStatusLabelFlags(
     const eq = pair.indexOf("=");
     if (eq === -1) {
       throw new AxiError(
-        `--status-label must be Label=index, got: ${pair}`,
+        `--status-label must be Label=id (the label's Monday label id, not the display "index"), got: ${pair}`,
         "VALIDATION_ERROR",
       );
     }
@@ -52,7 +52,7 @@ function parseStatusLabelFlags(
     const index = Number(pair.slice(eq + 1));
     if (!Number.isInteger(index)) {
       throw new AxiError(
-        `--status-label index must be an integer, got: ${pair}`,
+        `--status-label id must be an integer (the label id from the status column's settings_str, not the display "index"), got: ${pair}`,
         "VALIDATION_ERROR",
       );
     }

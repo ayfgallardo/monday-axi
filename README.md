@@ -72,10 +72,13 @@ monday-axi setup --board <BOARD_ID> \
   --status-label "En cours=1"
 ```
 
-`--column` and `--status-label` are repeatable. Run `monday-axi setup --help`
-for the full flag list. `setup` prints back exactly what was written — never
-invented data — and re-validates it through the same shape check used when
-the config is loaded.
+`--column` and `--status-label` are repeatable. `--status-label`'s value is the
+label's Monday label id — the key in the status column's `settings_str` labels
+map (retrievable via `monday-axi api` on that column) — not the "index" field
+Monday tools display next to each label, which is only a display position.
+Run `monday-axi setup --help` for the full flag list. `setup` prints back
+exactly what was written — never invented data — and re-validates it through
+the same shape check used when the config is loaded.
 
 ## Auth
 

@@ -52,7 +52,8 @@ const COMMAND_HELP: Record<string, string> = {
 `,
   api: `usage: monday-axi api <graphql-query|-> [--var name=value] [--allow-mutation]
 `,
-  setup: `usage: monday-axi setup --board <BOARD_ID> [--subitem-board <ID>] [--person <ID>] [--column name=<ID>] [--status-label "Label=index"]
+  setup: `usage: monday-axi setup --board <BOARD_ID> [--subitem-board <ID>] [--person <ID>] [--column name=<ID>] [--status-label "Label=id"]
+  --status-label id is the label's Monday label id (the key in the status column's settings_str labels map), NOT the "index" field shown by Monday tools.
 `,
 };
 
