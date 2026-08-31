@@ -1,0 +1,35 @@
+{
+  "boards": [
+    {
+      "items_page": {
+        "cursor": null,
+        "items": [
+          {
+            "id": "111",
+            "name": "Fix login timeout",
+            "column_values": [
+              { "id": "status_1", "text": "En cours", "label": "En cours" },
+              { "id": "module_1", "text": "Auth" }
+            ]
+          },
+          {
+            "id": "222",
+            "name": "Update onboarding email",
+            "column_values": [
+              { "id": "status_1", "text": "À faire", "label": "À faire" },
+              { "id": "module_1", "text": "Notifications" }
+            ]
+          },
+          {
+            "id": "444",
+            "name": "Cleanup dead code",
+            "column_values": [
+              { "id": "status_1", "text": "En cours", "label": "En cours" },
+              { "id": "module_1", "text": "Core" }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "boards": [
+    {
+      "id": "1234567890",
+      "name": "Sprint Général",
+      "items_count": 42,
+      "groups": [
+        { "id": "topics", "title": "À faire" },
+        { "id": "group_1", "title": "En cours" }
+      ],
+      "columns": [
+        { "id": "status_1", "title": "Statut", "type": "status" },
+        { "id": "person_1", "title": "Assigné", "type": "people" },
+        { "id": "module_1", "title": "Module", "type": "text" }
+      ]
+    }
+  ]
+}
