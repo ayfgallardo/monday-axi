@@ -12,7 +12,11 @@ const validConfig = {
   subitemBoardId: "1234567891",
   personId: "999",
   columns: { status: "status_1", person: "person_1" },
-  statusLabels: ["À faire", "En cours", "Terminé"],
+  statusLabels: [
+    { label: "À faire", index: 0 },
+    { label: "En cours", index: 1 },
+    { label: "Terminé", index: 5 },
+  ],
 };
 
 describe("loadConfig", () => {
@@ -55,6 +59,34 @@ describe("loadConfig", () => {
     const error = captureError();
     expect(error.code).toBe("VALIDATION_ERROR");
     expect(error.suggestions.join("\n")).toContain("monday-axi setup");
+  });
+
+  it("rejects statusLabels shaped as plain strings (the old, position-based format)", () => {
+    readFileSync.mockReturnValue(
+      JSON.stringify({
+        boardId: "1234567890",
+        statusLabels: ["À faire", "En cours"],
+      }),
+    );
+    const error = captureError();
+    expect(error.code).toBe("VALIDATION_ERROR");
+    expect(error.suggestions.join("\n")).toContain("label");
+    expect(error.suggestions.join("\n")).toContain("index");
+  });
+
+  it("rejects a statusLabels entry missing a numeric index", () => {
+    readFileSync.mockReturnValue(
+      JSON.stringify({
+        boardId: "1234567890",
+        statusLabels: [{ label: "À faire" }],
+      }),
+    );
+    expect(captureError().code).toBe("VALIDATION_ERROR");
+  });
+
+  it("accepts non-contiguous Monday settings indexes", () => {
+    readFileSync.mockReturnValue(JSON.stringify(validConfig));
+    expect(loadConfig().statusLabels).toEqual(validConfig.statusLabels);
   });
 });
 
