@@ -24,6 +24,25 @@ describe("takeFlag", () => {
   it("returns undefined when absent", () => {
     expect(takeFlag(["list"], "--status")).toBeUndefined();
   });
+
+  it("throws VALIDATION_ERROR when the flag is the last argument (space form)", () => {
+    expect(() => takeFlag(["list", "--status"], "--status")).toThrow(AxiError);
+    expect(() => takeFlag(["list", "--status"], "--status")).toThrow(
+      /--status requires a value/,
+    );
+  });
+
+  it("throws VALIDATION_ERROR when the next token looks like another flag", () => {
+    expect(() =>
+      takeFlag(["list", "--status", "--module"], "--status"),
+    ).toThrow(/--status requires a value/);
+  });
+
+  it("throws VALIDATION_ERROR on an empty equals-form value", () => {
+    expect(() => takeFlag(["list", "--status="], "--status")).toThrow(
+      /--status requires a value/,
+    );
+  });
 });
 
 describe("takeBoolFlag", () => {

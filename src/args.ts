@@ -4,18 +4,29 @@ function flagEqualsPrefix(flag: string): string {
   return `${flag}=`;
 }
 
-/** Get a flag's value from --flag value or --flag=value and remove it from args. */
+/**
+ * Get a flag's value from --flag value or --flag=value and remove it from
+ * args. Throws VALIDATION_ERROR when the flag is present without a usable
+ * value (missing, or the next token looks like another flag) — a flag with a
+ * missing value must never silently fall back to a default.
+ */
 export function takeFlag(args: string[], flag: string): string | undefined {
   const equalsPrefix = flagEqualsPrefix(flag);
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === flag) {
       const val = args[i + 1];
+      if (val === undefined || val.startsWith("--")) {
+        throw new AxiError(`${flag} requires a value`, "VALIDATION_ERROR");
+      }
       args.splice(i, 2);
       return val;
     }
     if (arg.startsWith(equalsPrefix)) {
       const val = arg.slice(equalsPrefix.length);
+      if (val.trim() === "") {
+        throw new AxiError(`${flag} requires a value`, "VALIDATION_ERROR");
+      }
       args.splice(i, 1);
       return val;
     }

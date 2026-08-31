@@ -38,7 +38,7 @@ const context: MondayContext = {
   subitemBoardId: "1234567891",
   personId: "999",
   columns: { status: "status_1" },
-  statusLabels: ["À faire"],
+  statusLabels: [{ label: "À faire", index: 0 }],
 };
 
 async function cliOptions() {
@@ -169,6 +169,26 @@ describe("main CLI", () => {
     expect(formatted?.exitCode).toBe(1);
   });
 
+  it("rejects --board with no value instead of silently ignoring it", async () => {
+    const options = await cliOptions();
+    expect(() =>
+      options.resolveContext?.({
+        command: "ticket",
+        args: ["list", "--board"],
+      }),
+    ).toThrow(/--board requires a value/);
+  });
+
+  it("rejects --person=<empty> instead of silently ignoring it", async () => {
+    const options = await cliOptions();
+    expect(() =>
+      options.resolveContext?.({
+        command: "ticket",
+        args: ["list", "--person="],
+      }),
+    ).toThrow(/--person requires a value/);
+  });
+
   it("gives a validation error exit code 2", async () => {
     const options = await cliOptions();
     expect(
@@ -209,5 +229,23 @@ describe("parseContextArgs", () => {
       personFlag: undefined,
       strippedArgs: ["view", "1234567890"],
     });
+  });
+
+  it("throws VALIDATION_ERROR when --board is the last argument", () => {
+    expect(() => parseContextArgs(["list", "--board"])).toThrow(
+      /--board requires a value/,
+    );
+  });
+
+  it("throws VALIDATION_ERROR when --board is followed by another flag", () => {
+    expect(() =>
+      parseContextArgs(["list", "--board", "--person", "1"]),
+    ).toThrow(/--board requires a value/);
+  });
+
+  it("throws VALIDATION_ERROR on an empty --person=<value>", () => {
+    expect(() => parseContextArgs(["list", "--person="])).toThrow(
+      /--person requires a value/,
+    );
   });
 });

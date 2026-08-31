@@ -140,23 +140,35 @@ export function parseContextArgs(args: string[]): {
 
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
-    if ((arg === "--board" || arg === "--person") && index + 1 < args.length) {
+    if (arg === "--board" || arg === "--person") {
+      const next = args[index + 1];
+      if (next === undefined || next.startsWith("--")) {
+        throw new AxiError(`${arg} requires a value`, "VALIDATION_ERROR");
+      }
       if (arg === "--board") {
-        boardFlag = args[index + 1];
+        boardFlag = next;
       } else {
-        personFlag = args[index + 1];
+        personFlag = next;
       }
       index++;
       continue;
     }
 
-    if (arg.startsWith("--board=") && arg.length > "--board=".length) {
-      boardFlag = arg.slice("--board=".length);
+    if (arg.startsWith("--board=")) {
+      const value = arg.slice("--board=".length);
+      if (value.trim() === "") {
+        throw new AxiError("--board requires a value", "VALIDATION_ERROR");
+      }
+      boardFlag = value;
       continue;
     }
 
-    if (arg.startsWith("--person=") && arg.length > "--person=".length) {
-      personFlag = arg.slice("--person=".length);
+    if (arg.startsWith("--person=")) {
+      const value = arg.slice("--person=".length);
+      if (value.trim() === "") {
+        throw new AxiError("--person requires a value", "VALIDATION_ERROR");
+      }
+      personFlag = value;
       continue;
     }
 
