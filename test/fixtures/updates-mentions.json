@@ -1,0 +1,28 @@
+{
+  "updates": [
+    {
+      "id": "6001",
+      "created_at": "2026-08-30T09:00:00Z",
+      "text_body": "@Alice Dupont peux-tu regarder ceci ?",
+      "body": "<p><span data-mention-id=\"999\" data-mention-type=\"User\">Alice Dupont</span> peux-tu regarder ceci ?</p>",
+      "item_id": "111",
+      "creator": { "id": "998", "name": "Bob Martin" }
+    },
+    {
+      "id": "6000",
+      "created_at": "2026-08-29T09:00:00Z",
+      "text_body": "Merci pour la review",
+      "body": "<p>Merci pour la review</p>",
+      "item_id": "222",
+      "creator": { "id": "997", "name": "Carla Silva" }
+    },
+    {
+      "id": "5999",
+      "created_at": "2026-08-28T09:00:00Z",
+      "text_body": "Update sans ticket associe",
+      "body": "<p>Update sans ticket associe</p>",
+      "item_id": null,
+      "creator": { "id": "997", "name": "Carla Silva" }
+    }
+  ]
+}
