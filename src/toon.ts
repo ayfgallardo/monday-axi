@@ -177,6 +177,20 @@ export function renderOutput(blocks: string[]): string {
   return blocks.filter(Boolean).join("\n");
 }
 
+/**
+ * Truncate free text for display, with the size shown so an agent knows how
+ * much was cut. Returns the raw text unchanged when it already fits.
+ */
+export function truncateText(
+  text: string | null | undefined,
+  maxLen = 500,
+  fullHint = "use --full to see the complete text",
+): string {
+  if (!text) return "";
+  if (text.length <= maxLen) return text;
+  return `${text.slice(0, maxLen)}\n... (truncated, ${text.length} chars total - ${fullHint})`;
+}
+
 function formatRelativeTime(iso: string | null | undefined): string {
   if (!iso) return "unknown";
   const now = Date.now();

@@ -14,6 +14,7 @@ import {
   renderHelp,
   renderError,
   renderOutput,
+  truncateText,
 } from "../src/toon.js";
 
 describe("field extractors", () => {
@@ -153,5 +154,30 @@ describe("renderError", () => {
 describe("renderOutput", () => {
   it("combines blocks and filters empty", () => {
     expect(renderOutput(["block1", "", "block2"])).toBe("block1\nblock2");
+  });
+});
+
+describe("truncateText", () => {
+  it("returns text unchanged when it fits", () => {
+    expect(truncateText("short", 500)).toBe("short");
+  });
+
+  it("returns empty string for null/undefined/empty input", () => {
+    expect(truncateText(null, 10)).toBe("");
+    expect(truncateText(undefined, 10)).toBe("");
+    expect(truncateText("", 10)).toBe("");
+  });
+
+  it("truncates and shows the original size with a hint", () => {
+    const text = "a".repeat(20);
+    const output = truncateText(text, 10);
+    expect(output.startsWith("a".repeat(10))).toBe(true);
+    expect(output).toContain("truncated, 20 chars total");
+    expect(output).toContain("use --full to see the complete text");
+  });
+
+  it("accepts a custom full hint", () => {
+    const output = truncateText("a".repeat(20), 10, "use --files to see all");
+    expect(output).toContain("use --files to see all");
   });
 });
