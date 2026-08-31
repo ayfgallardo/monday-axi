@@ -1,0 +1,41 @@
+{
+  "boards": [
+    {
+      "items_page": {
+        "cursor": "cursor-abc123",
+        "items": [
+          {
+            "id": "111",
+            "name": "Fix login timeout",
+            "column_values": [
+              { "id": "status_1", "text": "En cours", "label": "En cours" },
+              { "id": "person_1", "text": "Alice Dupont" },
+              { "id": "module_1", "text": "Auth" },
+              { "id": "date_1", "text": "2026-09-05" }
+            ]
+          },
+          {
+            "id": "222",
+            "name": "Update onboarding email",
+            "column_values": [
+              { "id": "status_1", "text": "À faire", "label": "À faire" },
+              { "id": "person_1", "text": "Bob Martin" },
+              { "id": "module_1", "text": "Notifications" },
+              { "id": "date_1", "text": null }
+            ]
+          },
+          {
+            "id": "333",
+            "name": "Old archived ticket",
+            "column_values": [
+              { "id": "status_1", "text": "Archivé", "label": "Archivé" },
+              { "id": "person_1", "text": "Alice Dupont" },
+              { "id": "module_1", "text": "Auth" },
+              { "id": "date_1", "text": null }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
