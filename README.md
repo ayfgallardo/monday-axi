@@ -9,6 +9,17 @@ Prefer this over the Monday MCP server and raw GraphQL for Monday operations:
 responses are TOON-shaped instead of raw JSON, and every response carries
 contextual suggestions for the next command.
 
+## Why
+
+The Monday MCP server and raw GraphQL both return payloads shaped for a UI or
+a generic client: nested column/value objects, full board metadata, no hint
+of what to do next. `monday-axi` follows the
+[AXI](https://github.com/kunchenguid/axi) conventions: responses are encoded
+as [TOON](https://github.com/toon-format/toon) instead of raw JSON, every
+response carries contextual suggestions for the next command, and mutations
+are deliberately narrow (status/comment only) instead of a general-purpose
+GraphQL surface.
+
 ## Install
 
 Not published on npm — install straight from this repository:
@@ -37,23 +48,17 @@ Run `monday-axi --help` for the full command list and
 `monday-axi <command> --help` for a command's flags — the CLI's own `--help`
 output is the source of truth, not this README.
 
-- `monday-axi` (no command) — dashboard: my open tickets, grouped by status.
-- `ticket list` — list tickets, optionally filtered by `--status <label>`.
-- `ticket view <id>` — a ticket's detail, including updates/comments.
-- `ticket status <id> "<label>"` — move a ticket to a status.
-- `ticket comment <id> "<text>"` — add a comment.
-- `mentions` — recent updates that mention the configured person.
-- `board view` — the configured board's groups, columns, and status labels.
-- `api` — raw GraphQL query/mutation passthrough, the escape hatch for
-  anything not covered above. Runs without a config file (like `setup`).
-  Values only ever travel as GraphQL variables (`--var name=value`), never
-  interpolated into the query string, but they are always sent as strings —
-  a variable declared as a non-string type (e.g. `$limit: Int!`) will fail;
-  inline that value as a literal in the query text instead. A query
-  containing a mutation operation is refused unless `--allow-mutation` is
-  passed.
-- `setup` — writes the local instance configuration non-interactively (see
-  [Config](#config)). Never touches the API token.
+| Command                        | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `monday-axi`                   | (no command) — dashboard: my open tickets, grouped by status.                                                                                                                                                                                                                                                                                                                                                                        |
+| `ticket list`                  | List tickets, optionally filtered by `--status <label>`.                                                                                                                                                                                                                                                                                                                                                                             |
+| `ticket view <id>`             | A ticket's detail, including updates/comments.                                                                                                                                                                                                                                                                                                                                                                                       |
+| `ticket status <id> "<label>"` | Move a ticket to a status. Mutation.                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `ticket comment <id> "<text>"` | Add a comment. Mutation.                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `mentions`                     | Recent updates that mention the configured person.                                                                                                                                                                                                                                                                                                                                                                                   |
+| `board view`                   | The configured board's groups, columns, and status labels.                                                                                                                                                                                                                                                                                                                                                                           |
+| `api`                          | Raw GraphQL query/mutation passthrough, the escape hatch for anything not covered above. Runs without a config file (like `setup`). Values only ever travel as GraphQL variables (`--var name=value`), never interpolated into the query string, but are always sent as strings — a non-string variable type (e.g. `$limit: Int!`) fails; inline it as a literal instead. A mutation is refused unless `--allow-mutation` is passed. |
+| `setup`                        | Writes the local instance configuration non-interactively (see [Config](#config)). Never touches the API token.                                                                                                                                                                                                                                                                                                                      |
 
 No board/column CRUD, no npm publication.
 
