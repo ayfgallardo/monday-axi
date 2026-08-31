@@ -1,8 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { runAxiCli, loadConfig } = vi.hoisted(() => ({
+const {
+  runAxiCli,
+  loadConfig,
+  ticketCommand,
+  mentionsCommand,
+  boardCommand,
+  homeCommand,
+} = vi.hoisted(() => ({
   runAxiCli: vi.fn(),
   loadConfig: vi.fn(),
+  ticketCommand: vi.fn(async () => "ticket output"),
+  mentionsCommand: vi.fn(async () => "mentions output"),
+  boardCommand: vi.fn(async () => "board output"),
+  homeCommand: vi.fn(async () => "home output"),
 }));
 
 vi.mock("axi-sdk-js", async () => {
@@ -12,6 +23,10 @@ vi.mock("axi-sdk-js", async () => {
 });
 
 vi.mock("../src/config.js", () => ({ loadConfig }));
+vi.mock("../src/commands/ticket.js", () => ({ ticketCommand }));
+vi.mock("../src/commands/mentions.js", () => ({ mentionsCommand }));
+vi.mock("../src/commands/board.js", () => ({ boardCommand }));
+vi.mock("../src/commands/home.js", () => ({ homeCommand }));
 
 import { AxiError } from "../src/errors.js";
 import { COMMAND_NAMES, main, parseContextArgs, TOP_HELP } from "../src/cli.js";
@@ -35,6 +50,10 @@ describe("main CLI", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     loadConfig.mockReturnValue(context);
+    ticketCommand.mockResolvedValue("ticket output");
+    mentionsCommand.mockResolvedValue("mentions output");
+    boardCommand.mockResolvedValue("board output");
+    homeCommand.mockResolvedValue("home output");
   });
 
   it("routes exactly the Monday command surface", () => {
@@ -64,14 +83,46 @@ describe("main CLI", () => {
     expect(options.home).toBeTypeOf("function");
   });
 
-  it("answers with a not-ported-yet stub for each command", async () => {
+  it("answers with a not-ported-yet stub for the commands still unimplemented", async () => {
     const options = await cliOptions();
-    for (const name of COMMAND_NAMES) {
+    for (const name of ["api", "setup"] as const) {
       const output = await options.commands[name]([], context);
       expect(String(output)).toContain("not ported yet");
       expect(String(output)).toContain(name);
     }
-    expect(String(await options.home([], context))).toContain("not ported yet");
+  });
+
+  it("dispatches ticket/mentions/board/home to their command modules", async () => {
+    const options = await cliOptions();
+    expect(await options.commands.ticket(["list"], context)).toBe(
+      "ticket output",
+    );
+    expect(ticketCommand).toHaveBeenCalledWith(["list"], context);
+
+    expect(await options.commands.mentions([], context)).toBe(
+      "mentions output",
+    );
+    expect(mentionsCommand).toHaveBeenCalledWith([], context);
+
+    expect(await options.commands.board(["view"], context)).toBe(
+      "board output",
+    );
+    expect(boardCommand).toHaveBeenCalledWith(["view"], context);
+
+    expect(await options.home([], context)).toBe("home output");
+    expect(homeCommand).toHaveBeenCalledWith([], context);
+  });
+
+  it("strips --board/--person before handing args to a command handler", async () => {
+    const options = await cliOptions();
+    await options.commands.ticket(
+      ["list", "--board", "5555555555", "--status=En cours"],
+      context,
+    );
+    expect(ticketCommand).toHaveBeenCalledWith(
+      ["list", "--status=En cours"],
+      context,
+    );
   });
 
   it("exposes per-command help", async () => {

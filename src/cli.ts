@@ -1,5 +1,9 @@
 import { encode } from "@toon-format/toon";
 import { runAxiCli } from "axi-sdk-js";
+import { boardCommand } from "./commands/board.js";
+import { homeCommand } from "./commands/home.js";
+import { mentionsCommand } from "./commands/mentions.js";
+import { ticketCommand } from "./commands/ticket.js";
 import { loadConfig, type MondayContext } from "./config.js";
 import { AxiError, exitCodeForError } from "./errors.js";
 import { VERSION } from "./version.js";
@@ -60,9 +64,25 @@ function notPortedYet(name: string): CommandFn {
   return async () => encode({ command: name, status: "not ported yet" });
 }
 
-const COMMANDS: Record<string, CommandFn> = Object.fromEntries(
-  COMMAND_NAMES.map((name) => [name, notPortedYet(name)]),
-);
+/**
+ * `resolveContext` already parses --board/--person out of `args`, but
+ * `runAxiCli` still hands the raw args to the handler — strip the context
+ * flags here so every command sees only the flags it owns.
+ */
+function withStrippedArgs(fn: CommandFn): CommandFn {
+  return async (args, ctx) => {
+    const { strippedArgs } = parseContextArgs(args);
+    return fn(strippedArgs, ctx);
+  };
+}
+
+const COMMANDS: Record<string, CommandFn> = {
+  ticket: withStrippedArgs(ticketCommand),
+  mentions: withStrippedArgs(mentionsCommand),
+  board: withStrippedArgs(boardCommand),
+  api: notPortedYet("api"),
+  setup: notPortedYet("setup"),
+};
 
 export async function main(options: MainOptions = {}): Promise<void> {
   await runAxiCli<MondayContext | undefined>({
@@ -71,7 +91,7 @@ export async function main(options: MainOptions = {}): Promise<void> {
     version: VERSION,
     topLevelHelp: TOP_HELP,
     ...(options.stdout ? { stdout: options.stdout } : {}),
-    home: notPortedYet("home"),
+    home: withStrippedArgs(homeCommand),
     commands: COMMANDS,
     getCommandHelp: (command) => COMMAND_HELP[command],
     formatError: (error) => {
