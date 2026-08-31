@@ -93,7 +93,7 @@ export interface QueryParams {
 // ---------------------------------------------------------------------------
 
 export function columnText(
-  item: Item,
+  item: Pick<Item, "column_values">,
   columnId: string | undefined,
 ): string | null {
   if (!columnId) return null;
@@ -115,6 +115,10 @@ function findStatusLabel(
   label: string,
 ): StatusLabel | undefined {
   return ctx.statusLabels.find((s) => s.label === label);
+}
+
+function validStatusLabelsHelp(ctx: MondayContext): string[] {
+  return [`Valid labels: ${ctx.statusLabels.map((s) => s.label).join(", ")}`];
 }
 
 /**
@@ -480,14 +484,168 @@ async function ticketView(args: string[], ctx: MondayContext): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
+// ticket status
+// ---------------------------------------------------------------------------
+
+interface ItemStatusResponse {
+  items: Pick<Item, "id" | "board" | "column_values">[] | null;
+}
+
+export const ITEM_STATUS_QUERY = `
+  query ($id: ID!, $statusColumnId: [String!]) {
+    items(ids: [$id]) {
+      id
+      board {
+        id
+      }
+      column_values(ids: $statusColumnId) {
+        id
+        text
+        ... on StatusValue {
+          label
+        }
+      }
+    }
+  }
+`;
+
+export const SET_STATUS_MUTATION = `
+  mutation ($itemId: ID!, $boardId: ID!, $columnId: String!, $value: String!) {
+    change_simple_column_value(item_id: $itemId, board_id: $boardId, column_id: $columnId, value: $value) {
+      id
+    }
+  }
+`;
+
+async function ticketStatus(
+  args: string[],
+  ctx: MondayContext,
+): Promise<string> {
+  const id = takeNumericId(args, "ticket");
+  const label = args.shift();
+  if (!label) {
+    throw new AxiError("Missing status label", "VALIDATION_ERROR", [
+      "monday-axi ticket status <id> <label>",
+      ...validStatusLabelsHelp(ctx),
+    ]);
+  }
+  rejectUnknownFlags(args, [], "ticket", "status");
+
+  if (!findStatusLabel(ctx, label)) {
+    throw new AxiError(`Unknown status label: ${label}`, "VALIDATION_ERROR", [
+      ...validStatusLabelsHelp(ctx),
+    ]);
+  }
+
+  const statusColumnId = ctx.columns.status;
+  if (!statusColumnId) {
+    throw new AxiError("No status column configured", "VALIDATION_ERROR");
+  }
+
+  const data = await mondayQuery<ItemStatusResponse>(ITEM_STATUS_QUERY, {
+    id,
+    statusColumnId: [statusColumnId],
+  });
+  const item = data.items?.[0];
+  if (!item) {
+    throw new AxiError(`Ticket ${id} not found`, "NOT_FOUND", [
+      "Run `monday-axi ticket list` to see available tickets",
+    ]);
+  }
+
+  const currentLabel = columnText(item, statusColumnId);
+  const schema: FieldDef[] = [field("id"), field("status")];
+  const hints = renderHelp(
+    getSuggestions({ domain: "ticket", action: "status", id }),
+  );
+
+  if (currentLabel === label) {
+    return renderOutput([
+      renderDetail("ticket", { id, status: label, already: true }, [
+        ...schema,
+        field("already"),
+      ]),
+      hints,
+    ]);
+  }
+
+  // board_of guard: the item's OWN board, never ctx.boardId — a subitem
+  // lives on subitemBoardId, not the parent board.
+  const boardId = item.board?.id;
+  if (!boardId) {
+    throw new AxiError(`Ticket ${id} has no board`, "UNKNOWN");
+  }
+
+  await mondayQuery(SET_STATUS_MUTATION, {
+    itemId: id,
+    boardId,
+    columnId: statusColumnId,
+    value: label,
+  });
+
+  return renderOutput([
+    renderDetail("ticket", { id, status: label }, schema),
+    hints,
+  ]);
+}
+
+// ---------------------------------------------------------------------------
+// ticket comment
+// ---------------------------------------------------------------------------
+
+export const CREATE_UPDATE_MUTATION = `
+  mutation ($itemId: ID!, $body: String!) {
+    create_update(item_id: $itemId, body: $body) {
+      id
+    }
+  }
+`;
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/\n/g, "<br>");
+}
+
+async function ticketComment(
+  args: string[],
+  ctx: MondayContext,
+): Promise<string> {
+  const id = takeNumericId(args, "ticket");
+  const text = args.join(" ").trim();
+  if (!text) {
+    throw new AxiError("Missing comment text", "VALIDATION_ERROR", [
+      "monday-axi ticket comment <id> <text>",
+    ]);
+  }
+
+  const body = escapeHtml(text);
+  await mondayQuery(CREATE_UPDATE_MUTATION, { itemId: id, body });
+
+  return renderOutput([
+    renderDetail("ticket", { id, comment: "ok" }, [
+      field("id"),
+      field("comment"),
+    ]),
+    renderHelp(getSuggestions({ domain: "ticket", action: "comment", id })),
+  ]);
+}
+
+// ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
 
-export const TICKET_HELP = `usage: monday-axi ticket <list|view> [args] [flags]
+export const TICKET_HELP = `usage: monday-axi ticket <list|view|status|comment> [args] [flags]
 flags{list}:
   --status <label>, --module <text>, --all, --limit <n>, --cursor <c> (continue a previous page; cannot combine with --status/--module/--all)
 flags{view}:
   --full
+usage{status}: monday-axi ticket status <id> <label>
+usage{comment}: monday-axi ticket comment <id> <text>
 `;
 
 const HANDLERS: Record<
@@ -496,6 +654,8 @@ const HANDLERS: Record<
 > = {
   list: ticketList,
   view: ticketView,
+  status: ticketStatus,
+  comment: ticketComment,
 };
 
 export async function ticketCommand(

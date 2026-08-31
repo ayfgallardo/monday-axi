@@ -44,6 +44,18 @@ const table: SuggestionEntry[] = [
   },
 
   {
+    match: (c) => c.domain === "ticket" && c.action === "status",
+    lines: (c) => [
+      `Run \`monday-axi ticket view ${c.id}\` to see the ticket now`,
+      "Run `monday-axi ticket list` to see all tickets",
+    ],
+  },
+  {
+    match: (c) => c.domain === "ticket" && c.action === "comment",
+    lines: (c) => [`Run \`monday-axi ticket view ${c.id}\` to see the comment`],
+  },
+
+  {
     match: (c) => c.domain === "mentions" && !c.isEmpty,
     lines: () => [
       "Run `monday-axi ticket view <id>` to see the mentioned ticket",
