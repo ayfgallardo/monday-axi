@@ -32,6 +32,6 @@ sur glab-axi : `bin/` fast-path `--version`, `src/cli.ts` routage pur via
   monday-axi vs l'équivalent MCP Monday, à partir de paires de fichiers
   capturées (`<scenario>.axi.<ext>` / `<scenario>.mcp.<ext>`) dans le dossier
   donné en argument. Ne lance rien en direct.
-- Commits directs sur main, messages en français, types conventionnels.
+- Commits directs sur main, messages en anglais, types conventionnels.
 - Tests réels : lectures en smoke uniquement ; mutations réelles jamais sans
   accord explicite de Florian.
