@@ -36,6 +36,7 @@ describe("mondayQuery", () => {
     expect(ApiClient).toHaveBeenCalledWith({
       token: FAKE_TOKEN,
       apiVersion: API_VERSION,
+      requestConfig: { fetch: expect.any(Function) },
     });
     expect(API_VERSION).toBe("2026-07");
   });
