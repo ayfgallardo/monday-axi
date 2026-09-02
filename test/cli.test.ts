@@ -70,6 +70,7 @@ describe("main CLI", () => {
       "mentions",
       "board",
       "api",
+      "gain",
       "setup",
     ]);
   });

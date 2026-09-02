@@ -623,10 +623,7 @@ function escapeHtml(text: string): string {
     .replace(/\r?\n/g, "<br>");
 }
 
-async function ticketComment(
-  args: string[],
-  ctx: MondayContext,
-): Promise<string> {
+async function ticketComment(args: string[]): Promise<string> {
   const id = takeNumericId(args, "ticket");
   const text = args.join(" ").trim();
   if (!text) {

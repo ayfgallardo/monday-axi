@@ -60,8 +60,8 @@ export function custom(as: string, fn: (item: any) => any): FieldDef {
   return { type: "custom", as, fn };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- items are JSON-parsed objects with dynamic keys
 export function extract(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- items are JSON-parsed objects with dynamic keys
   item: Record<string, any>,
   schema: FieldDef[],
 ): Record<string, unknown> {

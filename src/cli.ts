@@ -2,12 +2,14 @@ import { encode } from "@toon-format/toon";
 import { runAxiCli } from "axi-sdk-js";
 import { apiCommand } from "./commands/api.js";
 import { boardCommand } from "./commands/board.js";
+import { gainCommand } from "./commands/gain.js";
 import { homeCommand } from "./commands/home.js";
 import { mentionsCommand } from "./commands/mentions.js";
 import { setupCommand } from "./commands/setup.js";
 import { ticketCommand } from "./commands/ticket.js";
 import { loadConfig, type MondayContext } from "./config.js";
 import { AxiError, exitCodeForError } from "./errors.js";
+import { flushGain, gainCommandName, gainStdout, startGain } from "./gain.js";
 import { VERSION } from "./version.js";
 
 export const DESCRIPTION =
@@ -25,6 +27,7 @@ export const COMMAND_NAMES = [
   "mentions",
   "board",
   "api",
+  "gain",
   "setup",
 ] as const;
 
@@ -40,6 +43,7 @@ examples:
   monday-axi ticket status 1234567890 "En cours"
   monday-axi mentions
   monday-axi board view --board 1234567890
+  monday-axi gain
   monday-axi setup --board 1234567890
 `;
 
@@ -51,6 +55,8 @@ const COMMAND_HELP: Record<string, string> = {
   board: `usage: monday-axi board view [--board <BOARD_ID>]
 `,
   api: `usage: monday-axi api <graphql-query|-> [--var name=value] [--allow-mutation]
+`,
+  gain: `usage: monday-axi gain
 `,
   setup: `usage: monday-axi setup --board <BOARD_ID> [--subitem-board <ID>] [--person <ID>] [--column name=<ID>] [--status-label "Label=id"]
   --status-label id is the label's Monday label id (the key in the status column's settings_str labels map), NOT the "index" field shown by Monday tools.
@@ -79,16 +85,19 @@ const COMMANDS: Record<string, CommandFn> = {
   mentions: withStrippedArgs(mentionsCommand),
   board: withStrippedArgs(boardCommand),
   api: withStrippedArgs(apiCommand),
+  gain: () => gainCommand(),
   setup: setupCommand,
 };
 
 export async function main(options: MainOptions = {}): Promise<void> {
+  const argv = options.argv ?? process.argv.slice(2);
+  startGain();
   await runAxiCli<MondayContext | undefined>({
-    ...(options.argv ? { argv: options.argv } : {}),
+    argv,
     description: DESCRIPTION,
     version: VERSION,
     topLevelHelp: TOP_HELP,
-    ...(options.stdout ? { stdout: options.stdout } : {}),
+    stdout: gainStdout(options.stdout ?? process.stdout),
     home: withStrippedArgs(homeCommand),
     commands: COMMANDS,
     getCommandHelp: (command) => COMMAND_HELP[command],
@@ -114,8 +123,9 @@ export async function main(options: MainOptions = {}): Promise<void> {
     resolveContext: ({ command, args }) => {
       // `setup` writes the configuration, so it must run without one; `api`
       // is a raw GraphQL escape hatch that ignores context, and requiring
-      // one would make it useless before `setup` has ever run.
-      if (command === "setup" || command === "api") {
+      // one would make it useless before `setup` has ever run; `gain` reads a
+      // local log and talks to no server.
+      if (command === "setup" || command === "api" || command === "gain") {
         return undefined;
       }
       const { boardFlag, personFlag } = parseContextArgs(args);
@@ -127,6 +137,8 @@ export async function main(options: MainOptions = {}): Promise<void> {
       };
     },
   });
+
+  await flushGain(gainCommandName(argv, COMMAND_NAMES));
 }
 
 export function parseContextArgs(args: string[]): {

@@ -1,6 +1,6 @@
 ---
 name: monday-axi
-description: "Operate Monday.com through the monday-axi CLI - dashboard, ticket list/view/status/comment, mentions, board view, raw GraphQL passthrough, and non-interactive setup. Use whenever a task touches Monday.com: listing or viewing tickets, changing a ticket's status, commenting, checking mentions, inspecting a board, or running a raw GraphQL query/mutation."
+description: "Operate Monday.com through the monday-axi CLI - dashboard, ticket list/view/status/comment, mentions, board view, raw GraphQL passthrough, recorded token savings, and non-interactive setup. Use whenever a task touches Monday.com: listing or viewing tickets, changing a ticket's status, commenting, checking mentions, inspecting a board, running a raw GraphQL query/mutation, or reporting the tokens the CLI has saved."
 user-invocable: true
 author: Florian Gallardo
 metadata:
@@ -32,8 +32,8 @@ installed copies go stale. Get the current source of truth from the CLI
 
 ## First run
 
-`monday-axi` needs a configuration file before any command but `setup` and
-`api` will work: `~/.config/monday-axi/config.json` (board id, optional
+`monday-axi` needs a configuration file before any command but `setup`, `api`
+and `gain` will work: `~/.config/monday-axi/config.json` (board id, optional
 subitem board id, person id, column ids, status labels). Create or repair it
 non-interactively:
 
@@ -44,6 +44,13 @@ monday-axi setup --help
 Run `monday-axi setup --help` for the full flag list. `setup` never touches
 the API token - authentication comes from `MONDAY_API_TOKEN`/`MONDAY_TOKEN` in
 the environment, a `.env` file, or the Keychain (see `monday-axi --help`).
+
+## Token savings
+
+`monday-axi gain` reports what this CLI has saved so far: raw GraphQL response
+tokens minus rendered output tokens, totalled and broken down per sub-command.
+Every invocation that talks to Monday records one line (integers and a command
+name only, never arguments or ids). `AXI_GAIN=0` disables the recording.
 
 ## Escape hatch
 
