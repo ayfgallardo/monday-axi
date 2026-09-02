@@ -22,7 +22,16 @@ sur glab-axi : `bin/` fast-path `--version`, `src/cli.ts` routage pur via
   `--allow-mutation` (garde-fou séparé de `board_of(item)`, propre au
   passthrough GraphQL brut).
 - Surface exacte : `home`, `ticket list|view|status|comment`, `mentions`,
-  `board view`, `api`, `setup`, `--version`. Rien d'autre.
+  `board view`, `api`, `gain`, `setup`, `--version`. Rien d'autre.
+- **Journal de gain** (`src/gain.ts`) : une ligne JSONL par invocation dans
+  `~/Library/Application Support/axi/monday-axi.jsonl` (XDG ailleurs). N'y
+  écrire QUE des entiers et un nom de sous-commande pris dans `COMMAND_NAMES` —
+  jamais d'argument, de valeur de flag, d'id ni de fragment de payload. Le
+  comptage du brut se fait au seul point de passage de toutes les réponses,
+  `requestConfig.fetch` du client Monday (`src/monday.ts`). `gpt-tokenizer` est
+  chargé en import dynamique APRÈS l'écriture de stdout, jamais au démarrage.
+  `AXI_GAIN=0` coupe tout. Aucun échec d'enregistrement ne peut changer la
+  sortie ni le code de sortie : tout est en `try/catch` silencieux.
 
 ## Développement
 

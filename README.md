@@ -58,13 +58,14 @@ output is the source of truth, not this README.
 | `mentions`                     | Recent updates that mention the configured person.                                                                                                                                                                                                                                                                                                                                                                                   |
 | `board view`                   | The configured board's groups, columns, and status labels.                                                                                                                                                                                                                                                                                                                                                                           |
 | `api`                          | Raw GraphQL query/mutation passthrough, the escape hatch for anything not covered above. Runs without a config file (like `setup`). Values only ever travel as GraphQL variables (`--var name=value`), never interpolated into the query string, but are always sent as strings — a non-string variable type (e.g. `$limit: Int!`) fails; inline it as a literal instead. A mutation is refused unless `--allow-mutation` is passed. |
+| `gain`                         | Token savings recorded by this CLI: totals and per-sub-command breakdown (see [Token savings](#token-savings)). Runs without a config file and talks to no server.                                                                                                                                                                                                                                              |
 | `setup`                        | Writes the local instance configuration non-interactively (see [Config](#config)). Never touches the API token.                                                                                                                                                                                                                                                                                                                      |
 
 No board/column CRUD, no npm publication.
 
 ## Config
 
-`monday-axi` (every command but `setup` and `api`) requires
+`monday-axi` (every command but `setup`, `api` and `gain`) requires
 `~/.config/monday-axi/config.json`: board id, optional subitem board id,
 optional person id (used to match mentions), column id map, and status
 labels. Create or repair it non-interactively:
@@ -100,6 +101,41 @@ it only ever travels through the `Authorization` header. First match wins:
 - No board/column CRUD — read the board, change a ticket's status/comments,
   or drop to `api` for anything else.
 - Not published to npm; install from the git repository as shown above.
+
+## Token savings
+
+Every invocation that talks to Monday appends one line to
+`~/Library/Application Support/axi/monday-axi.jsonl` (XDG data directory
+elsewhere):
+
+```json
+{
+  "ts": 1788311865,
+  "cli": "monday-axi",
+  "cmd": "mentions",
+  "raw": 33355,
+  "out": 223,
+  "ms": 4234
+}
+```
+
+`raw` is the token count of every GraphQL response body of the invocation —
+what an agent would have ingested querying the API itself — and `out` the token
+count of the rendered output. `monday-axi gain` reports the accumulated totals.
+
+- **Only the sub-command name is recorded.** Never arguments, flag values,
+  board or item ids, URLs or payload fragments; the log holds integers and
+  command names.
+- Every response is counted exactly once, including each page of a paginated
+  `ticket list` or dashboard, because the count sits on the single `fetch` the
+  Monday SDK uses for every request.
+- `AXI_GAIN=0` disables recording entirely.
+- Recording can never fail a command, and never delays its output: the
+  tokenizer is imported after stdout is written, which costs ~80 ms before the
+  process exits.
+- `board view` saves almost nothing (~4 %) — its query asks for exactly what it
+  renders. The savings come from the commands that read far more than they
+  show: `mentions` (~99 %), the dashboard and `ticket` (~82 %).
 
 ## Benchmark
 
