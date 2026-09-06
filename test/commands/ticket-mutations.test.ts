@@ -6,6 +6,7 @@ vi.mock("../../src/monday.js", () => ({ mondayQuery }));
 import {
   CREATE_UPDATE_MUTATION,
   ticketCommand,
+  USERS_QUERY,
 } from "../../src/commands/ticket.js";
 import type { MondayContext } from "../../src/config.js";
 
@@ -180,6 +181,112 @@ describe("ticket comment", () => {
       ticketCommand(["comment", "111"], context),
     ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     expect(mondayQuery).not.toHaveBeenCalled();
+  });
+
+  it("appends a mention anchor resolved by name, keeping the text escaped", async () => {
+    mondayQuery
+      .mockResolvedValueOnce({
+        users: [
+          { id: "42", name: "Florian Gallardo" },
+          { id: "43", name: "Alice Martin" },
+        ],
+      })
+      .mockResolvedValueOnce({ create_update: { id: "555" } });
+
+    await ticketCommand(
+      ["comment", "111", "à toi <b>", "--mention", "florian"],
+      context,
+    );
+
+    const [usersQuery] = mondayQuery.mock.calls[0] as [string];
+    expect(usersQuery).toBe(USERS_QUERY);
+    const [, vars] = mondayQuery.mock.calls[1] as [
+      string,
+      Record<string, unknown>,
+    ];
+    expect(vars.body).toBe(
+      'à toi &lt;b&gt; <a data-mention-id="42" data-mention-type="User">@Florian Gallardo</a>',
+    );
+  });
+
+  it("resolves two mentions with a single users query", async () => {
+    mondayQuery
+      .mockResolvedValueOnce({
+        users: [
+          { id: "42", name: "Florian Gallardo" },
+          { id: "43", name: "Alice Martin" },
+        ],
+      })
+      .mockResolvedValueOnce({ create_update: { id: "555" } });
+
+    await ticketCommand(
+      ["comment", "111", "ping", "--mention", "florian", "--mention", "alice"],
+      context,
+    );
+
+    expect(mondayQuery).toHaveBeenCalledTimes(2);
+    const [, vars] = mondayQuery.mock.calls[1] as [
+      string,
+      Record<string, unknown>,
+    ];
+    expect(vars.body).toBe(
+      'ping <a data-mention-id="42" data-mention-type="User">@Florian Gallardo</a> ' +
+        '<a data-mention-id="43" data-mention-type="User">@Alice Martin</a>',
+    );
+  });
+
+  it("uses a numeric --mention as-is, without querying users", async () => {
+    mondayQuery.mockResolvedValueOnce({ create_update: { id: "555" } });
+
+    await ticketCommand(
+      ["comment", "111", "ping", "--mention", "12345"],
+      context,
+    );
+
+    expect(mondayQuery).toHaveBeenCalledTimes(1);
+    const [query, vars] = mondayQuery.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+    expect(query).toBe(CREATE_UPDATE_MUTATION);
+    expect(vars.body).toBe(
+      'ping <a data-mention-id="12345" data-mention-type="User">@12345</a>',
+    );
+  });
+
+  it("rejects an ambiguous --mention name, listing the candidates", async () => {
+    mondayQuery.mockResolvedValueOnce({
+      users: [
+        { id: "42", name: "Florian Gallardo" },
+        { id: "44", name: "Florian Dupont" },
+      ],
+    });
+
+    try {
+      await ticketCommand(
+        ["comment", "111", "ping", "--mention", "florian"],
+        context,
+      );
+      throw new Error("expected rejection");
+    } catch (error) {
+      expect(error).toMatchObject({ code: "VALIDATION_ERROR" });
+      const suggestions = (error as { suggestions: string[] }).suggestions;
+      expect(suggestions.join(" ")).toContain("Florian Gallardo (id 42)");
+      expect(suggestions.join(" ")).toContain("Florian Dupont (id 44)");
+    }
+    expect(mondayQuery).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects an unknown --mention name without creating the update", async () => {
+    mondayQuery.mockResolvedValueOnce({
+      users: [{ id: "42", name: "Florian Gallardo" }],
+    });
+
+    await expect(
+      ticketCommand(["comment", "111", "ping", "--mention", "bob"], context),
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+
+    expect(mondayQuery).toHaveBeenCalledTimes(1);
   });
 
   it("returns explicit success output", async () => {

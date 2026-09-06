@@ -7,6 +7,7 @@ import {
   takeBoolFlag,
   takeFlag,
   takeNumericId,
+  takeRepeatedFlag,
 } from "../args.js";
 import { getSuggestions } from "../suggestions.js";
 import {
@@ -623,16 +624,91 @@ function escapeHtml(text: string): string {
     .replace(/\r?\n/g, "<br>");
 }
 
+export const USERS_QUERY = `
+  query {
+    users {
+      id
+      name
+    }
+  }
+`;
+
+interface MondayUser {
+  id: string;
+  name: string;
+}
+
+interface UsersResponse {
+  users: MondayUser[] | null;
+}
+
+function matchUser(users: MondayUser[], needle: string): MondayUser {
+  const wanted = needle.toLowerCase();
+  const exact = users.filter((u) => u.name.toLowerCase() === wanted);
+  const matches =
+    exact.length > 0
+      ? exact
+      : users.filter((u) => u.name.toLowerCase().includes(wanted));
+
+  if (matches.length === 1) return matches[0];
+  if (matches.length === 0) {
+    throw new AxiError(
+      `No user matches --mention ${needle}`,
+      "VALIDATION_ERROR",
+      [
+        "Pass a numeric Monday user id to skip the name lookup",
+        "Run `monday-axi api 'query { users { id name } }'` to list the users",
+      ],
+    );
+  }
+  throw new AxiError(
+    `--mention ${needle} is ambiguous`,
+    "VALIDATION_ERROR",
+    matches.map((u) => `${u.name} (id ${u.id})`),
+  );
+}
+
+/** Numeric values are used as-is; names cost a single `users` query for the whole batch. */
+async function resolveMentions(values: string[]): Promise<MondayUser[]> {
+  if (values.length === 0) return [];
+  const needsLookup = values.some((v) => !/^\d+$/.test(v));
+  const users = needsLookup
+    ? ((await mondayQuery<UsersResponse>(USERS_QUERY)).users ?? [])
+    : [];
+
+  return values.map((value) =>
+    /^\d+$/.test(value) ? { id: value, name: value } : matchUser(users, value),
+  );
+}
+
+/**
+ * Monday only turns a mention into a notification when the body carries the
+ * anchor: "@Name" in plain text notifies nobody.
+ */
+function mentionTag(user: MondayUser): string {
+  return `<a data-mention-id="${escapeHtml(user.id)}" data-mention-type="User">@${escapeHtml(user.name)}</a>`;
+}
+
+/** Mentions are appended after the text, so the comment reads first. */
+function commentBody(text: string, mentions: MondayUser[]): string {
+  const tags = mentions.map(mentionTag).join(" ");
+  return tags ? `${escapeHtml(text)} ${tags}` : escapeHtml(text);
+}
+
+const COMMENT_FLAGS = ["--mention"] as const;
+
 async function ticketComment(args: string[]): Promise<string> {
+  rejectUnknownFlags(args, COMMENT_FLAGS, "ticket", "comment");
+  const mentionFlags = takeRepeatedFlag(args, "--mention");
   const id = takeNumericId(args, "ticket");
   const text = args.join(" ").trim();
   if (!text) {
     throw new AxiError("Missing comment text", "VALIDATION_ERROR", [
-      "monday-axi ticket comment <id> <text>",
+      "monday-axi ticket comment <id> <text> [--mention <user-id|name>]",
     ]);
   }
 
-  const body = escapeHtml(text);
+  const body = commentBody(text, await resolveMentions(mentionFlags));
   await mondayQuery(CREATE_UPDATE_MUTATION, { itemId: id, body });
 
   return renderOutput([
@@ -654,7 +730,9 @@ flags{list}:
 flags{view}:
   --full
 usage{status}: monday-axi ticket status <id> <label>
-usage{comment}: monday-axi ticket comment <id> <text>
+usage{comment}: monday-axi ticket comment <id> <text> [--mention <user-id|name>]
+flags{comment}:
+  --mention <user-id|name> (repeatable; a name is resolved against Monday users, mentions are appended after the text)
 `;
 
 const HANDLERS: Record<
