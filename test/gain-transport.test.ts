@@ -11,7 +11,8 @@ vi.mock("node:os", async () => {
 });
 
 const { flushGain, readGainLog, startGain } = await import("../src/gain.js");
-const { mondayQuery, resetMondayClient } = await import("../src/monday.js");
+const { mondayQuery, mondayUpload, resetMondayClient } =
+  await import("../src/monday.js");
 
 const PAGE_ONE = JSON.stringify({
   data: {
@@ -86,9 +87,7 @@ describe("gain accounting through the Monday transport", () => {
     await mondayQuery("query { next_items_page { cursor } }");
     await flushGain("ticket");
 
-    expect(readGainLog()[0].raw).toBe(
-      await tokens(`${PAGE_ONE}${PAGE_TWO}`),
-    );
+    expect(readGainLog()[0].raw).toBe(await tokens(`${PAGE_ONE}${PAGE_TWO}`));
   });
 
   it("still hands the parsed body to the caller", async () => {
@@ -100,6 +99,24 @@ describe("gain accounting through the Monday transport", () => {
     }>("query { next_items_page { items { id } } }");
 
     expect(data.next_items_page.items[0].id).toBe("2");
+  });
+
+  it("counts a multipart upload response like any other", async () => {
+    const uploaded = JSON.stringify({
+      data: { add_file_to_update: { id: "9", name: "a.pdf" } },
+    });
+    fetchMock.mockResolvedValue(jsonResponse(uploaded));
+    startGain();
+    await mondayUpload(
+      "mutation { add_file_to_update { id } }",
+      {
+        updateId: "555",
+      },
+      { name: "a.pdf", content: new Uint8Array([1]) },
+    );
+    await flushGain("ticket");
+
+    expect(readGainLog()[0].raw).toBe(await tokens(uploaded));
   });
 
   it("records nothing when AXI_GAIN=0", async () => {

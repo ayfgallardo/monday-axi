@@ -27,21 +27,28 @@ const countingFetch: typeof fetch = async (input, init) => {
   });
 };
 
+/** Monday refuses multipart on /v2 — uploads have their own endpoint. */
+export const FILE_ENDPOINT = "https://api.monday.com/v2/file";
+
 let memoizedResolve: Promise<string> | undefined;
 let memoizedClient: { resolved: string; client: ApiClient } | undefined;
 
-/** Resolve the token and build the ApiClient at most once per process. */
-async function getClient(): Promise<ApiClient> {
+/** Resolve the token at most once per process. */
+async function getToken(): Promise<string> {
   if (!memoizedResolve) {
     memoizedResolve = resolveToken();
   }
-  let resolved: string;
   try {
-    resolved = await memoizedResolve;
+    return await memoizedResolve;
   } catch (error) {
     memoizedResolve = undefined;
     throw error;
   }
+}
+
+/** Resolve the token and build the ApiClient at most once per process. */
+async function getClient(): Promise<ApiClient> {
+  const resolved = await getToken();
   if (!memoizedClient || memoizedClient.resolved !== resolved) {
     memoizedClient = {
       resolved,
@@ -73,4 +80,54 @@ export async function mondayQuery<T>(
   } catch (error) {
     throw mapMondayError(error);
   }
+}
+
+/**
+ * Upload transport for `https://api.monday.com/v2/file`: the SDK only speaks
+ * JSON, and Monday rejects a multipart body on the regular endpoint. Follows
+ * the GraphQL multipart request spec — `query`, `variables` with the file slot
+ * nulled, `map` pointing at it, then the binary part — and counts the response
+ * for `gain` the way `countingFetch` does for every other call.
+ */
+export async function mondayUpload<T>(
+  query: string,
+  variables: Record<string, unknown>,
+  file: { name: string; content: Uint8Array<ArrayBuffer> },
+): Promise<T> {
+  const token = await getToken();
+
+  const form = new FormData();
+  form.append("query", query);
+  form.append("variables", JSON.stringify({ ...variables, file: null }));
+  form.append("map", JSON.stringify({ file: "variables.file" }));
+  form.append("file", new Blob([file.content]), file.name);
+
+  let text: string;
+  let status: number;
+  try {
+    const response = await fetch(FILE_ENDPOINT, {
+      method: "POST",
+      headers: { Authorization: token, "API-Version": API_VERSION },
+      body: form,
+    });
+    status = response.status;
+    text = await response.text();
+  } catch (error) {
+    throw mapMondayError(error);
+  }
+  recordRawBody(text);
+
+  let payload: { data?: T; errors?: unknown[] };
+  try {
+    payload = JSON.parse(text) as { data?: T; errors?: unknown[] };
+  } catch {
+    throw mapMondayError(
+      new Error(`Monday file endpoint returned HTTP ${status} (not JSON)`),
+    );
+  }
+
+  if (payload.errors?.length || payload.data === undefined) {
+    throw mapMondayError({ response: { status, errors: payload.errors } });
+  }
+  return payload.data;
 }
