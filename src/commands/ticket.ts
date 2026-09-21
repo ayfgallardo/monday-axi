@@ -1,6 +1,8 @@
+import { readFileSync, statSync } from "node:fs";
+import { basename } from "node:path";
 import type { MondayContext, StatusLabel } from "../config.js";
-import { mondayQuery } from "../monday.js";
-import { AxiError } from "../errors.js";
+import { mondayQuery, mondayUpload } from "../monday.js";
+import { AxiError, type ErrorCode } from "../errors.js";
 import {
   rejectUnknownFlags,
   resolveLimit,
@@ -614,6 +616,114 @@ export const CREATE_UPDATE_MUTATION = `
   }
 `;
 
+/** Runs against FILE_ENDPOINT, not /v2: the file travels as a multipart part. */
+export const ADD_FILE_TO_UPDATE_MUTATION = `
+  mutation ($updateId: ID!, $file: File!) {
+    add_file_to_update(update_id: $updateId, file: $file) {
+      id
+      name
+      file_size
+    }
+  }
+`;
+
+interface CreateUpdateResponse {
+  create_update: { id: string } | null;
+}
+
+interface AddFileResponse {
+  add_file_to_update: { id: string; name: string; file_size: number } | null;
+}
+
+/** Monday's hard cap on the file upload endpoint. */
+export const MAX_FILE_BYTES = 500 * 1024 * 1024;
+
+export function assertFileSize(name: string, bytes: number): void {
+  if (bytes > MAX_FILE_BYTES) {
+    throw new AxiError(
+      `${name} is ${bytes} bytes, over the Monday upload limit of ${MAX_FILE_BYTES}`,
+      "VALIDATION_ERROR",
+      ["Compress or split the file, or share a link in the comment instead"],
+    );
+  }
+}
+
+interface Attachment {
+  name: string;
+  content: Uint8Array<ArrayBuffer>;
+}
+
+/**
+ * Read every attachment up front: a comment must never be created for files
+ * that turn out to be unreadable.
+ */
+function readAttachments(paths: string[]): Attachment[] {
+  return paths.map((path) => {
+    let size: number;
+    try {
+      const stats = statSync(path);
+      if (stats.isDirectory()) {
+        throw new AxiError(`${path} is a directory`, "VALIDATION_ERROR", [
+          "Pass one --file per file to attach",
+        ]);
+      }
+      size = stats.size;
+    } catch (error) {
+      if (error instanceof AxiError) throw error;
+      throw new AxiError(`File not found: ${path}`, "NOT_FOUND", [
+        "Pass a readable path: monday-axi ticket comment <id> <text> --file <path>",
+      ]);
+    }
+
+    const name = basename(path);
+    assertFileSize(name, size);
+
+    try {
+      return { name, content: new Uint8Array(readFileSync(path)) };
+    } catch {
+      throw new AxiError(`Cannot read ${path}`, "VALIDATION_ERROR", [
+        "Check the file permissions",
+      ]);
+    }
+  });
+}
+
+/** Uploads are sequential so a failure names exactly which file did not land. */
+async function attachFiles(
+  updateId: string,
+  attachments: Attachment[],
+): Promise<{ id: string; name: string; size: number }[]> {
+  const assets: { id: string; name: string; size: number }[] = [];
+  for (const attachment of attachments) {
+    let asset: AddFileResponse["add_file_to_update"];
+    try {
+      asset = (
+        await mondayUpload<AddFileResponse>(
+          ADD_FILE_TO_UPDATE_MUTATION,
+          { updateId },
+          attachment,
+        )
+      ).add_file_to_update;
+    } catch (error) {
+      throw new AxiError(
+        `Comment ${updateId} was created, but attaching ${attachment.name} failed: ${(error as Error).message}`,
+        (error as { code?: ErrorCode }).code ?? "UNKNOWN",
+        [
+          `Do not repost the comment — retry the attachment only, e.g. \`monday-axi api\` on add_file_to_update with update_id ${updateId}`,
+        ],
+      );
+    }
+    if (!asset) {
+      throw new AxiError(
+        `Comment ${updateId} was created, but attaching ${attachment.name} returned no asset`,
+        "UNKNOWN",
+      );
+    }
+    assets.push({ id: asset.id, name: asset.name, size: asset.file_size });
+  }
+  return assets;
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
@@ -695,26 +805,50 @@ function commentBody(text: string, mentions: MondayUser[]): string {
   return tags ? `${escapeHtml(text)} ${tags}` : escapeHtml(text);
 }
 
-const COMMENT_FLAGS = ["--mention"] as const;
+const COMMENT_FLAGS = ["--mention", "--file"] as const;
 
 async function ticketComment(args: string[]): Promise<string> {
   rejectUnknownFlags(args, COMMENT_FLAGS, "ticket", "comment");
   const mentionFlags = takeRepeatedFlag(args, "--mention");
+  const fileFlags = takeRepeatedFlag(args, "--file");
   const id = takeNumericId(args, "ticket");
   const text = args.join(" ").trim();
   if (!text) {
     throw new AxiError("Missing comment text", "VALIDATION_ERROR", [
-      "monday-axi ticket comment <id> <text> [--mention <user-id|name>]",
+      "monday-axi ticket comment <id> <text> [--mention <user-id|name>] [--file <path>]",
     ]);
   }
 
+  const attachments = readAttachments(fileFlags);
   const body = commentBody(text, await resolveMentions(mentionFlags));
-  await mondayQuery(CREATE_UPDATE_MUTATION, { itemId: id, body });
+  const created = await mondayQuery<CreateUpdateResponse>(
+    CREATE_UPDATE_MUTATION,
+    { itemId: id, body },
+  );
+
+  const schema: FieldDef[] = [field("id"), field("comment")];
+  if (attachments.length === 0) {
+    return renderOutput([
+      renderDetail("ticket", { id, comment: "ok" }, schema),
+      renderHelp(getSuggestions({ domain: "ticket", action: "comment", id })),
+    ]);
+  }
+
+  const updateId = created.create_update?.id;
+  if (!updateId) {
+    throw new AxiError(
+      `Comment created on ticket ${id} but Monday returned no update id — files not attached`,
+      "UNKNOWN",
+      ["Run `monday-axi ticket view <id>` to check the comment, then retry"],
+    );
+  }
+
+  const files = await attachFiles(updateId, attachments);
 
   return renderOutput([
-    renderDetail("ticket", { id, comment: "ok" }, [
-      field("id"),
-      field("comment"),
+    renderDetail("ticket", { id, comment: "ok", files }, [
+      ...schema,
+      field("files"),
     ]),
     renderHelp(getSuggestions({ domain: "ticket", action: "comment", id })),
   ]);
@@ -730,9 +864,10 @@ flags{list}:
 flags{view}:
   --full
 usage{status}: monday-axi ticket status <id> <label>
-usage{comment}: monday-axi ticket comment <id> <text> [--mention <user-id|name>]
+usage{comment}: monday-axi ticket comment <id> <text> [--mention <user-id|name>] [--file <path>]
 flags{comment}:
   --mention <user-id|name> (repeatable; a name is resolved against Monday users, mentions are appended after the text)
+  --file <path> (repeatable; attached to the created comment, 500 MB max per file)
 `;
 
 const HANDLERS: Record<

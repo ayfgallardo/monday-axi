@@ -29,6 +29,7 @@
   "scripts": {
     "build": "tsc",
     "bench": "tsx scripts/benchmark.ts",
+    "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "tsx bin/monday-axi.ts",
