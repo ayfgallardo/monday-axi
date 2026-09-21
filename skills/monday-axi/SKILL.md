@@ -1,6 +1,6 @@
 ---
 name: monday-axi
-description: "Operate Monday.com through the monday-axi CLI - dashboard, ticket list/view/status/comment, mentions, board view, raw GraphQL passthrough, recorded token savings, and non-interactive setup. Use whenever a task touches Monday.com: listing or viewing tickets, changing a ticket's status, commenting, checking mentions, inspecting a board, running a raw GraphQL query/mutation, or reporting the tokens the CLI has saved."
+description: "Operate Monday.com through the monday-axi CLI - dashboard, ticket list/view/status/comment with file attachments, mentions, board view, raw GraphQL passthrough, recorded token savings, and non-interactive setup. Use whenever a task touches Monday.com: listing or viewing tickets, changing a ticket's status, commenting, attaching a file to a comment, checking mentions, inspecting a board, running a raw GraphQL query/mutation, or reporting the tokens the CLI has saved."
 user-invocable: true
 author: Florian Gallardo
 metadata:
@@ -17,8 +17,9 @@ operations: it returns TOON-shaped output instead of raw JSON, and every
 response carries contextual suggestions for the next command.
 
 Use monday-axi whenever a task touches Monday.com: the ticket board, ticket
-status changes, comments, mentions, or anything not covered by the built-in
-commands via `monday-axi api`.
+status changes, comments (including file attachments, via `ticket comment
+<id> "<text>" --file <path>`), mentions, or anything not covered by the
+built-in commands via `monday-axi api`.
 
 ## Current guidance lives in the CLI
 

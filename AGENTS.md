@@ -16,6 +16,13 @@ sur glab-axi : `bin/` fast-path `--version`, `src/cli.ts` routage pur via
 - Pas de shell : aucun `exec` sauf la lecture Keychain
   (`execFile("security", …)`).
 - `API-Version: 2026-07` épinglée dans le transport (`src/monday.ts`).
+- **Upload de fichier** : `add_file_to_update` ne passe pas par le SDK (JSON
+  seul) mais par `mondayUpload` (`src/monday.ts`), un transport multipart vers
+  `https://api.monday.com/v2/file` — `fetch`/`FormData`/`Blob` natifs, aucune
+  dépendance. Même token, même `API-Version`, même `mapMondayError`, et la
+  réponse est comptée dans le journal de gain comme toutes les autres. Les
+  fichiers de `ticket comment --file` sont lus et contrôlés AVANT la création
+  du commentaire : jamais de commentaire orphelin sur un chemin illisible.
 - Toute mutation colonne passe par la garde `board_of(item)` (les sous-éléments
   vivent sur un autre board que le parent).
 - `api` refuse toute query contenant une opération `mutation` sans le flag
@@ -35,8 +42,8 @@ sur glab-axi : `bin/` fast-path `--version`, `src/cli.ts` routage pur via
 
 ## Développement
 
-- `pnpm test` (vitest, transport mocké — aucun appel réseau en test) et
-  `pnpm build` (tsc) doivent rester verts.
+- `pnpm test` (vitest, transport mocké — aucun appel réseau en test),
+  `pnpm lint` (eslint) et `pnpm build` (tsc) doivent rester verts.
 - `pnpm run bench <dossier>` : compare les tokens (`o200k_base`) de la sortie
   monday-axi vs l'équivalent MCP Monday, à partir de paires de fichiers
   capturées (`<scenario>.axi.<ext>` / `<scenario>.mcp.<ext>`) dans le dossier
