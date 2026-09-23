@@ -1,9 +1,18 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mondayQuery } = vi.hoisted(() => ({ mondayQuery: vi.fn() }));
-vi.mock("../../src/monday.js", () => ({ mondayQuery }));
+const { mondayQuery, mondayUpload } = vi.hoisted(() => ({
+  mondayQuery: vi.fn(),
+  mondayUpload: vi.fn(),
+}));
+vi.mock("../../src/monday.js", () => ({ mondayQuery, mondayUpload }));
 
 import {
+  ADD_FILE_TO_UPDATE_MUTATION,
+  assertFileSize,
+  MAX_FILE_BYTES,
   CREATE_UPDATE_MUTATION,
   ticketCommand,
   USERS_QUERY,
@@ -293,5 +302,131 @@ describe("ticket comment", () => {
     mondayQuery.mockResolvedValueOnce({ create_update: { id: "555" } });
     const output = await ticketCommand(["comment", "111", "hello"], context);
     expect(output).toContain("111");
+  });
+});
+
+describe("ticket comment --file", () => {
+  let dir = "";
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    dir = mkdtempSync(join(tmpdir(), "monday-axi-upload-"));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  function writeFixture(name: string, content: string): string {
+    const path = join(dir, name);
+    writeFileSync(path, content);
+    return path;
+  }
+
+  it("creates the comment once, then uploads each file to the created update", async () => {
+    const a = writeFixture("a.pdf", "aaa");
+    const b = writeFixture("b.png", "bbbb");
+    mondayQuery.mockResolvedValueOnce({ create_update: { id: "555" } });
+    mondayUpload
+      .mockResolvedValueOnce({
+        add_file_to_update: { id: "11", name: "a.pdf", file_size: 3 },
+      })
+      .mockResolvedValueOnce({
+        add_file_to_update: { id: "12", name: "b.png", file_size: 4 },
+      });
+
+    const output = await ticketCommand(
+      ["comment", "111", "voici", "--file", a, "--file", b],
+      context,
+    );
+
+    expect(mondayQuery).toHaveBeenCalledTimes(1);
+    expect(mondayUpload).toHaveBeenCalledTimes(2);
+
+    const [query, vars, file] = mondayUpload.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+      { name: string; content: Uint8Array },
+    ];
+    expect(query).toBe(ADD_FILE_TO_UPDATE_MUTATION);
+    expect(vars).toEqual({ updateId: "555" });
+    expect(file.name).toBe("a.pdf");
+    expect(Buffer.from(file.content).toString()).toBe("aaa");
+
+    const [, , second] = mondayUpload.mock.calls[1] as [
+      string,
+      Record<string, unknown>,
+      { name: string },
+    ];
+    expect(second.name).toBe("b.png");
+
+    expect(output).toContain("a.pdf");
+    expect(output).toContain("b.png");
+    expect(output).toContain("11");
+    expect(output).toContain("12");
+  });
+
+  it("rejects a missing file before any network call", async () => {
+    await expect(
+      ticketCommand(
+        ["comment", "111", "voici", "--file", join(dir, "nope.pdf")],
+        context,
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    expect(mondayQuery).not.toHaveBeenCalled();
+    expect(mondayUpload).not.toHaveBeenCalled();
+  });
+
+  it("rejects a directory passed as --file before any network call", async () => {
+    await expect(
+      ticketCommand(["comment", "111", "voici", "--file", dir], context),
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+
+    expect(mondayQuery).not.toHaveBeenCalled();
+    expect(mondayUpload).not.toHaveBeenCalled();
+  });
+
+  it("names the created update and the failing file when an upload fails", async () => {
+    const a = writeFixture("a.pdf", "aaa");
+    mondayQuery.mockResolvedValueOnce({ create_update: { id: "555" } });
+    mondayUpload.mockRejectedValueOnce(new Error("upload exploded"));
+
+    try {
+      await ticketCommand(["comment", "111", "voici", "--file", a], context);
+      throw new Error("expected rejection");
+    } catch (error) {
+      const message = (error as Error).message;
+      expect(message).toContain("555");
+      expect(message).toContain("a.pdf");
+      const suggestions =
+        (error as { suggestions?: string[] }).suggestions ?? [];
+      expect(suggestions.join(" ")).toContain("555");
+    }
+  });
+
+  it("leaves the output unchanged when no --file is passed", async () => {
+    mondayQuery.mockResolvedValueOnce({ create_update: { id: "555" } });
+    const output = await ticketCommand(["comment", "111", "hello"], context);
+
+    expect(mondayUpload).not.toHaveBeenCalled();
+    expect(output).not.toContain("files");
+  });
+});
+
+describe("assertFileSize", () => {
+  it("accepts a file at the Monday limit", () => {
+    expect(() => assertFileSize("a.pdf", MAX_FILE_BYTES)).not.toThrow();
+  });
+
+  it("rejects a file over the limit, naming it and the limit", () => {
+    try {
+      assertFileSize("a.pdf", MAX_FILE_BYTES + 1);
+      throw new Error("expected rejection");
+    } catch (error) {
+      expect(error).toMatchObject({ code: "VALIDATION_ERROR" });
+      expect((error as Error).message).toContain("a.pdf");
+      expect((error as Error).message).toContain(String(MAX_FILE_BYTES));
+    }
   });
 });
